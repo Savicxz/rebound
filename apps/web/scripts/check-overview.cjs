@@ -205,7 +205,12 @@ demoData.active_incident = {
 };
 assert.match(renderDemo(demoData), /Blocked for human review/);
 assert.match(renderDemo(demoData), /paused for human review/);
-assert.match(renderDemo(demoData), /Expected result/);
+assert.match(renderDemo(demoData), /School service failure lab/);
+assert.match(renderDemo(demoData), /Download evidence JSON/);
+assert.match(
+  renderDemo(demoData),
+  /no school systems or student records are connected/,
+);
 console.log(
   "Demo checks passed: loading, fault detection, escalation and scenario instructions.",
 );

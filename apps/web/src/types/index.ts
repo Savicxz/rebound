@@ -134,3 +134,10 @@ export interface User {
   username: string;
   role: "OPERATOR" | "ADMIN";
 }
+export type DemoScenarioId =
+  | "crash"
+  | "degraded"
+  | "auth_outage"
+  | "storage_full"
+  | "attendance_backlog"
+  | "slow_assessment";

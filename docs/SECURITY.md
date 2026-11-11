@@ -5,12 +5,13 @@ operations platform.
 
 ## Implemented controls
 
-- Recovery is limited to a fixed runbook and a predefined demo child process.
+- Recovery is limited to two fixed runbooks on one predefined demo child process:
+  restart it or replay its bounded synthetic attendance queue.
 - The runner requires an internal token and binds to localhost in native mode.
   Compose places it on an internal network without publishing its ports.
 - Operator and administrator permissions are checked server-side on mutations.
 - Accounts use bcrypt password hashes and signed expiring session tokens.
-- The browser requires explicit sign-in; passwords are not embedded in its bundle.
+- The browser requires an explicit session; passwords are not embedded in its bundle.
 - Session cookies are HttpOnly and SameSite=Lax; non-demo environments use Secure.
 - Non-demo configuration rejects built-in secrets and short replacement values.
 - One automatic recovery attempt per incident and a cooldown limit repeated actions.
@@ -23,6 +24,11 @@ operations platform.
 Unauthenticated users can read synthetic telemetry, incident history and settings.
 Operators can trigger and reset demo faults. Administrators can also approve and
 reject guarded runbooks. Internal runner access uses a separate token.
+
+The native local demo has a one-click session using the seeded demo administrator.
+It requires `ENVIRONMENT=demo`, `LOCAL_DEMO_ACCESS=true`, a loopback client and local
+browser origin. Nonlocal forwarded addresses and hosts are rejected. Turn it off for
+a shared deployment. It does not configure or require Google Cloud IAM roles.
 
 Read-only access is intentional for local judging. Review it before publishing any
 non-synthetic data. Default demo credentials are public examples and must be replaced

@@ -8,7 +8,7 @@ import AuditView from "../components/AuditView";
 import DemoControlsView from "../components/DemoControlsView";
 import SettingsView from "../components/SettingsView";
 import SignIn from "../components/SignIn";
-import { DashboardData, Incident } from "../types";
+import { DashboardData, Incident, DemoScenarioId } from "../types";
 
 export default function Home() {
   const [currentTab, setCurrentTab] = useState("overview");
@@ -165,7 +165,7 @@ export default function Home() {
   };
 
   // Actions
-  const handleTriggerFailure = async (type: "crash" | "degraded") => {
+  const handleTriggerFailure = async (type: DemoScenarioId) => {
     const res = await fetch("/api/v1/demo/failures", {
       method: "POST",
       headers: {
@@ -258,7 +258,26 @@ export default function Home() {
             {sessionError}
           </p>
         )}
-        {!currentUser.token && <SignIn onSignIn={loginUser} />}
+        {!currentUser.token && (
+          <SignIn
+            onSignIn={loginUser}
+            onStartDemo={async () => {
+              const response = await fetch("/api/v1/auth/demo", {
+                method: "POST",
+              });
+              const result = await response.json();
+              if (!response.ok)
+                throw new Error(
+                  result.detail || "Could not start demo session.",
+                );
+              setCurrentUser({
+                username: result.user.username,
+                role: result.user.role,
+                token: result.access_token,
+              });
+            }}
+          />
+        )}
         <div className="mb-7 flex flex-wrap items-center justify-between gap-3 pb-2 text-xs text-slate-500">
           <p role="status">
             {dashboardError

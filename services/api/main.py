@@ -1,5 +1,7 @@
 import json
 import asyncio
+import time
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from typing import List, Optional
 from contextlib import asynccontextmanager
@@ -52,6 +54,7 @@ from services.api.security import (
     require_admin,
 )
 from services.api.events import broadcaster
+from services.demo_scenarios import SCENARIOS
 from services.api.policy import ALLOWLISTED_RUNBOOKS, execute_runbook
 from services.monitor_worker.worker import record_event
 
@@ -81,7 +84,7 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -104,6 +107,10 @@ async def login(
             detail="Incorrect username or password",
         )
 
+    return session_response(user, response)
+
+
+def session_response(user: User, response: Response):
     token = create_access_token(data={"sub": user.username, "role": user.role})
     response.set_cookie(
         key="rebound_token",
@@ -116,6 +123,45 @@ async def login(
     return TokenResponse(
         access_token=token, token_type="bearer", user=UserResponse.model_validate(user)
     )
+
+
+@app.post("/api/v1/auth/demo", response_model=TokenResponse)
+async def start_local_demo(
+    request: Request, response: Response, db: AsyncSession = Depends(get_db)
+):
+    local_hosts = {"localhost", "127.0.0.1", "::1"}
+    origin = urlsplit(request.headers.get("origin", ""))
+    forwarded = request.headers.get("x-forwarded-for", "")
+    forwarded_host = request.headers.get("x-forwarded-host")
+    if (
+        settings.ENVIRONMENT != "demo"
+        or not settings.LOCAL_DEMO_ACCESS
+        or not request.client
+        or request.client.host not in local_hosts
+        or origin.hostname not in local_hosts
+        or origin.scheme not in ("http", "https")
+        or any(
+            part.strip() not in local_hosts
+            for part in forwarded.split(",")
+            if part.strip()
+        )
+        or (
+            forwarded_host
+            and urlsplit(f"http://{forwarded_host}").hostname not in local_hosts
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Quick demo access is available only on localhost. Use account access for another deployment.",
+        )
+    user = (
+        (await db.execute(select(User).where(User.username == settings.ADMIN_USERNAME)))
+        .scalars()
+        .first()
+    )
+    if user is None:
+        raise HTTPException(status_code=503, detail="Demo account is not ready")
+    return session_response(user, response)
 
 
 @app.get("/api/v1/auth/me", response_model=UserResponse)
@@ -562,6 +608,13 @@ async def events_stream(request: Request):
 # ----------------- Demo Controls & Scenario Triggering -----------------
 
 
+@app.get("/api/v1/demo/scenarios")
+async def demo_scenarios():
+    return [
+        {"id": scenario_id, **scenario} for scenario_id, scenario in SCENARIOS.items()
+    ]
+
+
 @app.post("/api/v1/demo/failures")
 async def trigger_demo_failure(
     req: DemoFailureRequest,
@@ -574,6 +627,20 @@ async def trigger_demo_failure(
     - degraded: switches child service to degraded mode (HTTP 500)
     """
     scenario_type = "degrade" if req.type in ["degrade", "degraded"] else req.type
+    active = (
+        (
+            await db.execute(
+                select(Incident).where(Incident.state.notin_(["RESOLVED", "CLOSED"]))
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if active:
+        raise HTTPException(
+            status_code=409,
+            detail="Reset or finish the active incident before starting another scenario",
+        )
     target_endpoint = (
         f"{settings.RUNNER_CONTROL_URL}/internal/v1/scenario/{scenario_type}"
     )
@@ -596,6 +663,17 @@ async def trigger_demo_failure(
             detail=f"Failed to communicate with sandbox runner: {str(e)}",
         )
 
+    service = (
+        (await db.execute(select(Service).where(Service.slug == "demo-service")))
+        .scalars()
+        .first()
+    )
+    if service:
+        service.display_name = f"{SCENARIOS[req.type]['workflow']} (demo)"
+        service.status = "SUSPECTED"
+        service.consecutive_failures = 0
+        service.consecutive_successes = 0
+        await db.commit()
     return {
         "status": "ok",
         "scenario": req.type,
@@ -619,15 +697,19 @@ async def reset_demo(
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(target_endpoint, headers=headers)
-    except Exception as e:
-        pass
+            response = await client.post(target_endpoint, headers=headers)
+            response.raise_for_status()
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=503,
+            detail="Sandbox reset failed; recorded incident state has been preserved",
+        )
 
     # 2. Reset services in DB
     svc_res = await db.execute(select(Service))
     services = svc_res.scalars().all()
     for s in services:
-        s.status = "HEALTHY"
+        s.status = "SUSPECTED"
         s.consecutive_failures = 0
         s.consecutive_successes = 0
 
@@ -638,7 +720,6 @@ async def reset_demo(
     open_incidents = inc_res.scalars().all()
     for inc in open_incidents:
         inc.state = "CLOSED"
-        inc.resolved_at = get_utc_now()
         await record_event(
             db,
             inc.id,
@@ -656,7 +737,7 @@ async def reset_demo(
 
     return {
         "status": "ok",
-        "message": "Demo environment reset to pristine healthy state.",
+        "message": "Sandbox reset. Waiting for an independent healthy probe; active incidents were closed, not marked recovered.",
     }
 
 
@@ -829,6 +910,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
         {
             "health_interval": settings.HEALTH_CHECK_INTERVAL_SECONDS,
             "health_timeout": settings.HEALTH_CHECK_TIMEOUT_SECONDS,
+            "latency_limit_ms": settings.HEALTH_LATENCY_LIMIT_MS,
             "failure_threshold": settings.CONSECUTIVE_FAILURES_TO_OPEN,
             "verification_threshold": settings.CONSECUTIVE_SUCCESSES_TO_RESOLVE,
             "max_auto_recovery_attempts": settings.MAX_AUTO_RECOVERY_ATTEMPTS,

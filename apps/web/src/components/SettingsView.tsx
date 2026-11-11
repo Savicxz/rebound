@@ -43,6 +43,10 @@ export default function SettingsView({
     ],
     ["Failures before incident", settings?.failure_threshold ?? "Not loaded"],
     [
+      "Slow response threshold",
+      settings ? `${settings.latency_limit_ms} ms` : "Not loaded",
+    ],
+    [
       "Successful checks before resolution",
       settings?.verification_threshold ?? "Not loaded",
     ],

@@ -4,6 +4,7 @@ from pydantic import model_validator
 
 class Settings(BaseSettings):
     ENVIRONMENT: str = "demo"
+    LOCAL_DEMO_ACCESS: bool = True
     SIMULATION_LABEL: str = "SIMULATED SERVICE - NOT CONNECTED TO LIVE SYSTEMS"
     APP_PORT: int = 8000
     WEB_PORT: int = 3000
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
 
     HEALTH_CHECK_INTERVAL_SECONDS: float = 5.0
     HEALTH_CHECK_TIMEOUT_SECONDS: float = 2.0
+    HEALTH_LATENCY_LIMIT_MS: float = 500.0
     CONSECUTIVE_FAILURES_TO_OPEN: int = 3
     CONSECUTIVE_SUCCESSES_TO_RESOLVE: int = 2
     AUTO_RECOVERY_COOLDOWN_SECONDS: int = 60

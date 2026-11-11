@@ -21,6 +21,12 @@ symptom, target, runbook allowlist, attempt count and cooldown. Only the supervi
 can restart the predefined child process. Successful execution moves to verification,
 not resolution. Healthy probes complete verification; failures can escalate.
 
+The second fixed runbook replays up to twelve synthetic attendance records in memory
+without restarting. Its policy requires explicit queue-backlog evidence. Neither
+runbook can be substituted for the other based on an AI recommendation alone.
+School profiles also expose HTTP 500, 503 and 507 failures, plus a real 800 ms delay.
+Successful HTTP responses above the configured latency limit are failed checks.
+
 Unknown faults require human review. The Gemini API and the local fallback share
 an output schema, but provider labels distinguish which implementation produced a
 result. `fallback_reason` explains why a live provider was not used.

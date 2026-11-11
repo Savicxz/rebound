@@ -16,6 +16,7 @@ import time
 import httpx
 from fastapi import FastAPI, Header, HTTPException, status, Depends
 import uvicorn
+from services.demo_scenarios import SCENARIOS
 
 RUNNER_AUTH_TOKEN = os.getenv(
     "RUNNER_AUTH_TOKEN", "rebound_runner_internal_token_secure_2026"
@@ -63,10 +64,10 @@ def start_child_process(mode: str = "normal"):
     # Kill any existing process first
     stop_child_process()
 
-    script_path = os.path.join(os.path.dirname(__file__), "child_service.py")
     cmd = [
         sys.executable,
-        script_path,
+        "-m",
+        "services.sandbox_runner.child_service",
         "--port",
         str(RUNNER_DEMO_PORT),
         "--mode",
@@ -246,6 +247,53 @@ def scenario_reset(_: bool = Depends(verify_runner_auth)):
         "message": "Demo sandbox reset to pristine healthy state",
         "child_pid": state.child_process.pid if state.child_process else None,
         "mode": "normal",
+    }
+
+
+@app.post("/internal/v1/scenario/{scenario_id}")
+def educational_scenario(scenario_id: str, _: bool = Depends(verify_runner_auth)):
+    if scenario_id not in SCENARIOS or scenario_id in ("crash", "degraded"):
+        raise HTTPException(status_code=404, detail="Unknown scenario")
+    try:
+        response = httpx.post(
+            f"http://127.0.0.1:{RUNNER_DEMO_PORT}/internal/set-mode",
+            params={"mode": scenario_id},
+            timeout=2,
+        )
+        response.raise_for_status()
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=503, detail="Reset the sandbox before injecting this fault"
+        )
+    state.mode = scenario_id
+    state.last_action = f"{scenario_id}_simulated"
+    state.last_action_timestamp = time.time()
+    return {
+        "status": "ok",
+        "mode": scenario_id,
+        "message": SCENARIOS[scenario_id]["fault"],
+    }
+
+
+@app.post("/internal/v1/runbooks/replay-attendance-queue")
+def replay_attendance_queue(_: bool = Depends(verify_runner_auth)):
+    try:
+        response = httpx.post(
+            f"http://127.0.0.1:{RUNNER_DEMO_PORT}/internal/replay-attendance", timeout=3
+        )
+        response.raise_for_status()
+        result = response.json()
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(
+            status_code=503, detail="Attendance replay could not be verified"
+        )
+    state.mode = "normal"
+    state.last_action = "attendance_replay_executed"
+    state.last_action_timestamp = time.time()
+    return {
+        "status": "ok",
+        **result,
+        "message": f"Processed {result['processed']} synthetic attendance records; {result['remaining']} remaining. Process preserved.",
     }
 
 

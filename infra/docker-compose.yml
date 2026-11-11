@@ -56,6 +56,7 @@ services:
         condition: service_started
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-demo}
+      LOCAL_DEMO_ACCESS: "false"
       SECRET_KEY: ${SECRET_KEY:-rebound_demo_super_secret_jwt_key_please_change_in_production}
       DATABASE_URL: postgresql+asyncpg://rebound:rebound_password_2026@db:5432/rebound_db
       RUNNER_CONTROL_URL: http://sandbox-runner:5005
@@ -93,6 +94,7 @@ services:
       RUNNER_AUTH_TOKEN: ${RUNNER_AUTH_TOKEN:-rebound_runner_internal_token_secure_2026}
       HEALTH_CHECK_INTERVAL_SECONDS: 5
       HEALTH_CHECK_TIMEOUT_SECONDS: 2
+      HEALTH_LATENCY_LIMIT_MS: ${HEALTH_LATENCY_LIMIT_MS:-500}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
     networks:

@@ -8,18 +8,39 @@ It has no connection to production infrastructure.
 
 import argparse
 import time
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Response, status, HTTPException
+from services.demo_scenarios import SCENARIOS
 import uvicorn
 
 app = FastAPI(title="Demo API Service (Simulated)")
 
 start_time = time.time()
 current_mode = "normal"  # "normal" | "degraded"
+attendance_queue = []
+processed_attendance = set()
 
 
 @app.get("/health")
 def health(response: Response):
     uptime = time.time() - start_time
+    if current_mode == "slow_assessment":
+        time.sleep(0.8)
+    if current_mode in SCENARIOS and current_mode not in (
+        "crash",
+        "degraded",
+        "slow_assessment",
+    ):
+        scenario = SCENARIOS[current_mode]
+        response.status_code = scenario["http_status"]
+        return {
+            "status": "backlog"
+            if current_mode == "attendance_backlog"
+            else "dependency_failure",
+            "error_type": scenario["error_code"],
+            "message": scenario["fault"],
+            "queued_records": len(attendance_queue),
+            "simulated": True,
+        }
     if current_mode == "degraded":
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return {
@@ -53,10 +74,36 @@ def info():
 @app.post("/internal/set-mode")
 def set_mode(mode: str):
     global current_mode
-    if mode in ["normal", "degraded"]:
+    if mode == "normal" or mode in SCENARIOS and mode != "crash":
         current_mode = mode
+        attendance_queue.clear()
+        processed_attendance.clear()
+        if mode == "attendance_backlog":
+            attendance_queue.extend(
+                f"synthetic-attendance-{index}" for index in range(12)
+            )
         return {"status": "ok", "mode": current_mode}
-    return {"status": "error", "message": "Invalid mode"}, 400
+    raise HTTPException(status_code=400, detail="Invalid mode")
+
+
+@app.post("/internal/replay-attendance")
+def replay_attendance():
+    global current_mode
+    if current_mode not in ("attendance_backlog", "normal"):
+        response = Response(status_code=409)
+        return response
+    processed = 0
+    while attendance_queue:
+        record = attendance_queue.pop(0)
+        if record not in processed_attendance:
+            processed_attendance.add(record)
+            processed += 1
+    current_mode = "normal"
+    return {
+        "processed": processed,
+        "remaining": len(attendance_queue),
+        "simulated": True,
+    }
 
 
 if __name__ == "__main__":
@@ -70,7 +117,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    current_mode = args.mode
+    set_mode(args.mode)
     print(
         f"[ChildService] Starting Demo API Service on port {args.port} in mode '{current_mode}'..."
     )

@@ -252,3 +252,95 @@ async def test_end_to_end_scenario_b_degraded_escalation():
         assert "POLICY_EVALUATED" in event_types
         assert "HUMAN_REVIEW_REQUIRED" in event_types
         assert "RECOVERY_STARTED" not in event_types
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "scenario,expected_http",
+    [
+        ("auth_outage", 503),
+        ("storage_full", 507),
+        ("slow_assessment", 200),
+        ("attendance_backlog", 429),
+    ],
+)
+async def test_school_workflows_produce_real_evidence(scenario, expected_http):
+    transport = ASGITransport(app=app, client=("127.0.0.1", 12345))
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://localhost:3000",
+        headers={"Origin": "http://localhost:3000"},
+    ) as client:
+        session = await client.post("/api/v1/auth/demo")
+        assert session.status_code == 200
+        headers = {"Authorization": f"Bearer {session.json()['access_token']}"}
+        assert (
+            await client.post("/api/v1/demo/reset", headers=headers)
+        ).status_code == 200
+        before = (await client.get("/api/v1/demo/runtime", headers=headers)).json()
+        assert (
+            await client.post(
+                "/api/v1/demo/failures", json={"type": scenario}, headers=headers
+            )
+        ).status_code == 200
+        for _ in range(3):
+            await monitor_iteration()
+        dashboard = (await client.get("/api/v1/dashboard")).json()
+        incident = dashboard["active_incident"]
+        assert incident is not None
+        probes = dashboard["recent_observations"]
+        assert probes[0]["http_status"] == expected_http
+        assert probes[0]["success"] is False
+        assert scenario.split("_")[0].lower() in dashboard["services"][0][
+            "display_name"
+        ].lower() or scenario in ("auth_outage", "storage_full", "slow_assessment")
+        if scenario == "attendance_backlog":
+            assert incident["state"] == "VERIFYING"
+            assert (
+                incident["runbook_executions"][0]["runbook_id"]
+                == "REPLAY_DEMO_ATTENDANCE_QUEUE"
+            )
+            events = " ".join(event["public_message"] for event in incident["events"])
+            assert "12 synthetic attendance records" in events
+            after = (await client.get("/api/v1/demo/runtime", headers=headers)).json()
+            assert after["child_pid"] == before["child_pid"]
+            assert after["restart_count"] == before["restart_count"]
+            await monitor_iteration()
+            await monitor_iteration()
+            result = (await client.get(f"/api/v1/incidents/{incident['id']}")).json()
+            assert result["state"] == "RESOLVED"
+        else:
+            assert incident["state"] in ("AWAITING_APPROVAL", "ESCALATED")
+            assert not incident["auto_recovery_attempted"]
+            assert incident["runbook_executions"] == []
+            if scenario == "slow_assessment":
+                assert probes[0]["latency_ms"] >= 800
+            blocked = await client.post(
+                "/api/v1/demo/failures", json={"type": "crash"}, headers=headers
+            )
+            assert blocked.status_code == 409
+            await client.post("/api/v1/demo/reset", headers=headers)
+            closed = (await client.get(f"/api/v1/incidents/{incident['id']}")).json()
+            assert closed["state"] == "CLOSED" and closed["resolved_at"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "peer,origin,forwarded",
+    [
+        ("203.0.113.5", "http://localhost:3000", ""),
+        ("127.0.0.1", "https://untrusted.example", ""),
+        ("127.0.0.1", "", ""),
+        ("127.0.0.1", "http://localhost:3000", "203.0.113.5"),
+    ],
+)
+async def test_quick_demo_rejects_nonlocal_requests(peer, origin, forwarded):
+    async with AsyncClient(
+        transport=ASGITransport(app=app, client=(peer, 1234)),
+        base_url="http://localhost:3000",
+    ) as client:
+        response = await client.post(
+            "/api/v1/auth/demo",
+            headers={"Origin": origin, "X-Forwarded-For": forwarded},
+        )
+        assert response.status_code == 403

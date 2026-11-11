@@ -13,7 +13,14 @@ ALLOWLISTED_RUNBOOKS = {
         "auto_recover_allowed": True,
         "cooldown_seconds": 60,
         "endpoint": "/internal/v1/runbooks/restart-demo-child",
-    }
+    },
+    "REPLAY_DEMO_ATTENDANCE_QUEUE": {
+        "description": "Processes the bounded synthetic attendance queue without restarting",
+        "allowed_targets": ["demo-service"],
+        "auto_recover_allowed": True,
+        "cooldown_seconds": 60,
+        "endpoint": "/internal/v1/runbooks/replay-attendance-queue",
+    },
 }
 
 
@@ -54,11 +61,11 @@ def evaluate_incident_policy(
         )
 
     # 2. Check cooldown window
-    if (
-        incident.auto_recovery_cooldown_until
-        and incident.auto_recovery_cooldown_until > now
-    ):
-        remaining = int((incident.auto_recovery_cooldown_until - now).total_seconds())
+    cooldown = incident.auto_recovery_cooldown_until
+    if cooldown and cooldown.tzinfo is None:
+        cooldown = cooldown.replace(tzinfo=timezone.utc)
+    if cooldown and cooldown > now:
+        remaining = int((cooldown - now).total_seconds())
         return PolicyDecision(
             allowed=False,
             auto_recover=False,
@@ -91,19 +98,27 @@ def evaluate_incident_policy(
             auto_recover=False,
             runbook_id=None,
             state_transition="AWAITING_APPROVAL",
-            reason="Application is degraded (HTTP 500 / deadlock). No automated recovery runbook is authorized. Escalated for human review.",
+            reason="The recorded fault requires human review. No automated recovery is authorized for this evidence.",
         )
 
     # 5. Evaluate recommended runbook against rigid allowlist
-    if not any(
-        marker in err for marker in ("connection refused", "timed out", "timeout")
-    ):
+    rec_runbook = analysis.recommended_runbook_id
+    evidence_matches = (
+        rec_runbook == "REPLAY_DEMO_ATTENDANCE_QUEUE"
+        and "attendance_queue_backlog" in err
+    ) or (
+        rec_runbook == "RESTART_DEMO_CHILD_SERVICE"
+        and any(
+            marker in err for marker in ("connection refused", "timed out", "timeout")
+        )
+    )
+    if not evidence_matches:
         return PolicyDecision(
             False,
             False,
             None,
             "AWAITING_APPROVAL",
-            "No explicit connection-failure evidence. Human review is required.",
+            "Evidence does not support the recommended recovery action. Human review is required.",
         )
 
     rec_runbook = analysis.recommended_runbook_id
@@ -134,7 +149,7 @@ def evaluate_incident_policy(
         auto_recover=True,
         runbook_id=rec_runbook,
         state_transition="RECOVERING",
-        reason="Service is completely unavailable (connection refused/timeout). Allowlisted runbook RESTART_DEMO_CHILD_SERVICE approved.",
+        reason=f"Recorded evidence matches the allowlisted runbook {rec_runbook}. Bounded recovery approved.",
     )
 
 

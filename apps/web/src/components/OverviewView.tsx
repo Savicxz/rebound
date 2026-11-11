@@ -12,7 +12,7 @@ interface OverviewViewProps {
   onRefresh: () => void;
   onApproveRunbook: (incidentId: string, runbookId: string) => Promise<void>;
   onRejectRunbook: (incidentId: string, runbookId: string) => Promise<void>;
-  onTriggerFailure: (type: "crash" | "degraded") => Promise<void>;
+  onTriggerFailure: (type: import("../types").DemoScenarioId) => Promise<void>;
   onResetDemo: () => Promise<void>;
   onNavigate?: (tab: string) => void;
 }

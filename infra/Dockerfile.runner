@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY services/sandbox_runner/ /app/services/sandbox_runner/
 COPY services/__init__.py /app/services/
+COPY services/demo_scenarios.py /app/services/
 
 # Port 5005: Internal Supervisor Control API
 # Port 5006: Supervised Demo Child HTTP Service

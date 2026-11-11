@@ -169,7 +169,14 @@ class DashboardResponse(BaseModel):
 
 # Demo Requests
 class DemoFailureRequest(BaseModel):
-    type: Literal["crash", "degraded"]
+    type: Literal[
+        "crash",
+        "degraded",
+        "auth_outage",
+        "storage_full",
+        "attendance_backlog",
+        "slow_assessment",
+    ]
 
 
 class RunbookActionRequest(BaseModel):

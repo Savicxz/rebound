@@ -116,12 +116,18 @@ async def probe_service(service: Service) -> dict:
         async with httpx.AsyncClient(
             timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS
         ) as client:
+            start = time.perf_counter()
             resp = await client.get(url)
             latency = (time.perf_counter() - start) * 1000.0
             status_code = resp.status_code
             if status_code == 200:
-                success = True
-                details = resp.text[:200]
+                success = latency <= settings.HEALTH_LATENCY_LIMIT_MS
+                error_type = None if success else "SLOW_RESPONSE"
+                details = (
+                    resp.text[:200]
+                    if success
+                    else f"SLOW_RESPONSE: measured {latency:.1f} ms exceeds {settings.HEALTH_LATENCY_LIMIT_MS} ms limit"
+                )
             else:
                 success = False
                 error_type = f"HTTP_{status_code}"
@@ -272,7 +278,7 @@ async def handle_incident_flow(
                 session,
                 incident.id,
                 "RECOVERY_ACTION_COMPLETED",
-                f"Runner restart action completed. Transitioning to VERIFYING state (awaiting {settings.CONSECUTIVE_SUCCESSES_TO_RESOLVE} healthy probes).",
+                f"{msg} Transitioning to VERIFYING state (awaiting {settings.CONSECUTIVE_SUCCESSES_TO_RESOLVE} healthy probes).",
                 actor_type="SYSTEM",
                 actor_id="runbook_executor",
                 metadata={"runner_response": msg},

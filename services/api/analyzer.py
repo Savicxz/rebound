@@ -7,6 +7,7 @@ from contextlib import suppress
 from typing import Optional, List, Dict, Any
 from services.api.config import settings
 from services.api.schemas import AIAnalysisResult
+from services.demo_scenarios import SCENARIOS
 
 logger = logging.getLogger("rebound.analyzer")
 
@@ -73,6 +74,26 @@ class DeterministicDemoAnalyzer(IncidentAnalyzer):
     ) -> AIAnalysisResult:
         err = (last_error or "").lower()
         evidence_ids = [str(p.get("id")) for p in recent_probes if p.get("id")]
+
+        for scenario_id in (
+            "attendance_backlog",
+            "auth_outage",
+            "storage_full",
+            "slow_assessment",
+        ):
+            scenario = SCENARIOS[scenario_id]
+            if scenario["error_code"].lower() in err:
+                return AIAnalysisResult(
+                    incident_id=incident_id,
+                    provider="demo_fallback",
+                    summary=f"{service_name}: {scenario['title']}",
+                    suspected_cause=f"Observed demo fault: {scenario['error_code']}",
+                    evidence_event_ids=evidence_ids,
+                    confidence="medium",
+                    recommended_runbook_id=scenario["runbook_id"],
+                    reasoning_summary=scenario["outcome"],
+                    requires_human_review=scenario["runbook_id"] is None,
+                )
 
         if "degraded" in err or "500" in err or "pool" in err or "deadlock" in err:
             return AIAnalysisResult(
@@ -172,11 +193,12 @@ Last Error / Symptom: {sanitized_err}
 
 Valid Allowlisted Runbooks (ONLY ONE MAY BE RECOMMENDED):
 - "RESTART_DEMO_CHILD_SERVICE": Use ONLY if the service process is completely stopped/unreachable (connection refused/timeout).
-- null: If the failure is unknown, application code bug, database deadlock, or degraded HTTP 500 error.
+- "REPLAY_DEMO_ATTENDANCE_QUEUE": Use ONLY for explicit ATTENDANCE_QUEUE_BACKLOG evidence. It processes a bounded queue of synthetic records without restarting.
+- null: Unknown faults, database contention/HTTP 500, identity dependency/HTTP 503, upload quota/HTTP 507, or slow HTTP 200 responses above the latency limit. These require human review.
 
 CRITICAL SAFETY RULES:
 - You CANNOT generate shell commands or arbitrary instructions.
-- If recommended_runbook_id is not null, requires_human_review should be false if standard crash.
+- If a listed runbook has matching explicit evidence, requires_human_review may be false.
 - If degraded or ambiguous, recommended_runbook_id must be null and requires_human_review must be true.
 """
 

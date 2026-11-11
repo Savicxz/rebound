@@ -50,6 +50,38 @@ async def test_unavailable_providers_are_labelled():
         assert result.fallback_reason
 
 
+@pytest.mark.asyncio
+async def test_queue_evidence_cannot_authorize_restart_and_replay_is_specific():
+    analysis = await DeterministicDemoAnalyzer().analyze(
+        "incident", "Attendance", [], "ATTENDANCE_QUEUE_BACKLOG"
+    )
+    incident = Incident(state="OPEN", last_error="ATTENDANCE_QUEUE_BACKLOG")
+    service = Service(slug="demo-service")
+    assert evaluate_incident_policy(incident, service, analysis).auto_recover
+    analysis.recommended_runbook_id = "RESTART_DEMO_CHILD_SERVICE"
+    assert not evaluate_incident_policy(incident, service, analysis).auto_recover
+    incident.last_error = "Connection refused"
+    analysis.recommended_runbook_id = "REPLAY_DEMO_ATTENDANCE_QUEUE"
+    assert not evaluate_incident_policy(incident, service, analysis).auto_recover
+
+
+def test_synthetic_queue_replay_does_not_duplicate_records():
+    from fastapi.testclient import TestClient
+    from services.sandbox_runner.child_service import app, processed_attendance
+
+    with TestClient(app) as client:
+        assert (
+            client.post("/internal/set-mode?mode=attendance_backlog").status_code == 200
+        )
+        health = client.get("/health")
+        assert health.status_code == 429 and health.json()["queued_records"] == 12
+        first = client.post("/internal/replay-attendance").json()
+        assert first["processed"] == 12 and first["remaining"] == 0
+        assert client.post("/internal/replay-attendance").json()["processed"] == 0
+        assert len(processed_attendance) == 12
+        assert client.get("/health").status_code == 200
+
+
 def test_non_demo_mode_rejects_default_secrets():
     with pytest.raises(ValueError, match="unique"):
         Settings(_env_file=None, ENVIRONMENT="production")

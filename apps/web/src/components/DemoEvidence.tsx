@@ -177,6 +177,33 @@ export default function DemoEvidence({
             ? `${active ? "Active" : "Latest recorded"} incident: ${incident.id.slice(0, 8)} / ${incident.state}`
             : "No incident loaded"}
         </span>
+        <button
+          disabled={!incident}
+          onClick={() => {
+            const report = {
+              exported_at: new Date().toISOString(),
+              simulated: true,
+              incident,
+              recent_probe_sample: checks,
+              runtime_observation: runtime,
+              runtime_warning: runtimeError,
+              note: "Synthetic workload. Probe sample is bounded; runtime observation may be newer than the incident.",
+            };
+            const url = URL.createObjectURL(
+              new Blob([JSON.stringify(report, null, 2)], {
+                type: "application/json",
+              }),
+            );
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `rebound-incident-${incident?.id}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+          }}
+          className="min-h-11 rounded-md border border-stone-300 px-3 text-xs text-stone-700 disabled:opacity-50"
+        >
+          Download evidence JSON
+        </button>
       </header>
       {(runtimeError || incidentError) && (
         <p role="alert" className="text-sm text-amber-800">

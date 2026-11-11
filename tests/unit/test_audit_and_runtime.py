@@ -12,6 +12,42 @@ from services.api.models import Incident, IncidentEvent, Service
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("environment,enabled", [("production", True), ("demo", False)])
+async def test_quick_demo_access_requires_enabled_demo_environment(
+    monkeypatch, environment, enabled
+):
+    from services.api.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", environment)
+    monkeypatch.setattr(settings, "LOCAL_DEMO_ACCESS", enabled)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=("127.0.0.1", 1234)),
+        base_url="http://localhost:3000",
+    ) as client:
+        response = await client.post(
+            "/api/v1/auth/demo", headers={"Origin": "http://localhost:3000"}
+        )
+        assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_failed_reset_preserves_incident_records():
+    from services.api.main import reset_demo
+    from types import SimpleNamespace
+
+    db = AsyncMock()
+    with patch("services.api.main.httpx.AsyncClient") as factory:
+        factory.return_value.__aenter__.return_value.post.side_effect = (
+            httpx.ConnectError("unavailable")
+        )
+        with pytest.raises(HTTPException) as error:
+            await reset_demo(current_user=SimpleNamespace(username="demo"), db=db)
+    assert error.value.status_code == 503
+    db.execute.assert_not_called()
+    db.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_audit_cursor_preserves_equal_timestamp_events():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     try:

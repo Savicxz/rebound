@@ -28,10 +28,13 @@ Use `python start.py --check` for a read-only prerequisite check, or
 Service logs are written to `.logs/` and overwritten on the next launch.
 Stop any manually started services before using the launcher.
 
-## Demo accounts
+## Demo access
 
-Sign in through the form to control the sandbox. Read-only service data is available
-without signing in. The defaults below are for local demonstrations only:
+Click **Start local demo** to use one session on localhost. No Google Cloud account
+or IAM role setup is required. The button is disabled server-side outside demo mode,
+for remote requests, or when `LOCAL_DEMO_ACCESS=false`. Container and remote demos
+can use **Account access for other deployments**. Read-only service data is public.
+The defaults below are for local demonstrations only:
 
 | Account | Password | Permissions |
 | --- | --- | --- |
@@ -43,17 +46,34 @@ Accounts are seeded once; changing the environment does not change an existing
 account's password. Use a new demo database when setting up a separate environment.
 Do not commit `.env`, database files or credentials.
 
-## Try the two scenarios
+## Try school workflow failures
 
 1. Open **Scenarios** and confirm the service is healthy.
-2. Simulate a service crash. Three failed checks normally open an incident; policy
+2. Simulate a learning-portal crash. Three failed checks normally open an incident; policy
    may permit one restart. Resolution requires two successful health checks.
 3. Review the process PID, restart count, probe receipts, analysis source and event
    journal. A successful restart alone does not prove recovery.
-4. Reset the sandbox, wait for healthy checks, then simulate a degraded response.
-   HTTP 500 or uncertain evidence requires administrator review.
-5. Inspect complete messages and payloads in **Audit trail**. Use **Load older
+4. Download the incident evidence JSON, which includes the incident journal, bounded
+   recent probe sample and timestamped runtime observation.
+5. Reset the sandbox, wait for healthy checks, then choose another workflow.
+   Reset closes open incidents without marking them as verified recoveries.
+6. Inspect complete messages and payloads in **Audit trail**. Use **Load older
    events** to inspect earlier records.
+
+| School workflow | Actual injected fault | Response |
+| --- | --- | --- |
+| Learning portal | Stopped child process | One restart and independent verification |
+| Course registration | HTTP 500 / synthetic pool fault | Human investigation |
+| Student sign-in | HTTP 503 / synthetic identity dependency failure | Human investigation |
+| Assignment submission | HTTP 507 / simulated upload quota | Capacity review; no file deletion |
+| Attendance synchronisation | HTTP 429 / twelve synthetic queued records | Bounded queue replay, same process, then verification |
+| Online assessment | Actual 800 ms delay with HTTP 200 | Latency-limit detection and human investigation |
+
+These are six profiles of one isolated workload, not six connected school services.
+Potential impact text explains the school context; it does not claim measured
+student disruption. The queue is in memory and contains no personal data. Its replay
+is a demonstration, not a durable production messaging system. Slow checks exceed
+`HEALTH_LATENCY_LIMIT_MS` (500 ms by default); client setup time is excluded.
 
 The header switches between light and dark appearance and remembers the preference.
 Runtime settings are read-only and report the server configuration.
