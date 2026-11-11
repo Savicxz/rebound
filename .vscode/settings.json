@@ -1,0 +1,4 @@
+{
+    "python.terminal.useEnvFile": true,
+    "css.customData": [".vscode/tailwind-css-data.json"]
+}

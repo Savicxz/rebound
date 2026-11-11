@@ -1,0 +1,113 @@
+networks:
+  rebound-public:
+    driver: bridge
+  rebound-private:
+    internal: true
+
+volumes:
+  rebound_db_data:
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: rebound-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rebound
+      POSTGRES_PASSWORD: rebound_password_2026
+      POSTGRES_DB: rebound_db
+    volumes:
+      - rebound_db_data:/var/lib/postgresql/data
+    networks:
+      - rebound-private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rebound -d rebound_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  sandbox-runner:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.runner
+    container_name: rebound-sandbox-runner
+    restart: unless-stopped
+    environment:
+      RUNNER_AUTH_TOKEN: ${RUNNER_AUTH_TOKEN:-rebound_runner_internal_token_secure_2026}
+      RUNNER_CONTROL_PORT: 5005
+      RUNNER_DEMO_PORT: 5006
+      RUNNER_BIND_HOST: 0.0.0.0
+    networks:
+      - rebound-private
+    expose:
+      - "5005"
+      - "5006"
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    container_name: rebound-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      sandbox-runner:
+        condition: service_started
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-demo}
+      SECRET_KEY: ${SECRET_KEY:-rebound_demo_super_secret_jwt_key_please_change_in_production}
+      DATABASE_URL: postgresql+asyncpg://rebound:rebound_password_2026@db:5432/rebound_db
+      RUNNER_CONTROL_URL: http://sandbox-runner:5005
+      RUNNER_DEMO_SERVICE_URL: http://sandbox-runner:5006
+      RUNNER_AUTH_TOKEN: ${RUNNER_AUTH_TOKEN:-rebound_runner_internal_token_secure_2026}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-AdminPassword2026!}
+      OPERATOR_USERNAME: ${OPERATOR_USERNAME:-operator}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:-OperatorPassword2026!}
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - rebound-public
+      - rebound-private
+
+  monitor-worker:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.worker
+    container_name: rebound-monitor-worker
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+      db:
+        condition: service_healthy
+      sandbox-runner:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://rebound:rebound_password_2026@db:5432/rebound_db
+      RUNNER_CONTROL_URL: http://sandbox-runner:5005
+      RUNNER_DEMO_SERVICE_URL: http://sandbox-runner:5006
+      RUNNER_AUTH_TOKEN: ${RUNNER_AUTH_TOKEN:-rebound_runner_internal_token_secure_2026}
+      HEALTH_CHECK_INTERVAL_SECONDS: 5
+      HEALTH_CHECK_TIMEOUT_SECONDS: 2
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    networks:
+      - rebound-private
+      - rebound-public
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    container_name: rebound-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - rebound-public

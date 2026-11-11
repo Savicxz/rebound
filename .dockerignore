@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+.logs
+.pytest_cache
+.vscode
+**/__pycache__
+**/node_modules
+**/.next
+**/*.tsbuildinfo
+**/*.db
+**/*.db-wal
+**/*.db-shm
