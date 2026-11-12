@@ -26,11 +26,15 @@ export function summarizeChecks(checks: HealthObservation[]) {
 
 const timestamp = (value: string) =>
   new Date(/(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : `${value}Z`).getTime();
+const clockFormatter = new Intl.DateTimeFormat("en-MY", {
+  timeZone: "Asia/Kuala_Lumpur",
+  hour12: false,
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
 const clock = (value: string) =>
-  new Date(timestamp(value)).toLocaleTimeString("en-MY", {
-    timeZone: "Asia/Kuala_Lumpur",
-    hour12: false,
-  });
+  clockFormatter.format(new Date(timestamp(value)));
 const ms = (value: number | null) =>
   value == null ? "—" : `${value.toFixed(1)} ms`;
 

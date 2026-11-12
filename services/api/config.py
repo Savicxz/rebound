@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import model_validator
+from pydantic import model_validator, Field
 
 
 class Settings(BaseSettings):
@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     CONSECUTIVE_SUCCESSES_TO_RESOLVE: int = 2
     AUTO_RECOVERY_COOLDOWN_SECONDS: int = 60
     MAX_AUTO_RECOVERY_ATTEMPTS: int = 1
+
+    INCIDENT_CONCURRENCY: int = Field(default=2, ge=1, le=8)
+    ANALYSIS_TIMEOUT_SECONDS: float = Field(default=20.0, gt=0, le=120)
 
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"

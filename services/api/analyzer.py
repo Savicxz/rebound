@@ -97,9 +97,11 @@ class DeterministicDemoAnalyzer(IncidentAnalyzer):
                 incident_id=incident_id,
                 provider="demo_fallback",
                 summary=f"{service_name} is degraded and returning HTTP 500 error responses",
-                suspected_cause="Possible connection pool fault"
-                if "pool" in err or "deadlock" in err
-                else "Application fault; root cause unconfirmed",
+                suspected_cause=(
+                    "Possible connection pool fault"
+                    if "pool" in err or "deadlock" in err
+                    else "Application fault; root cause unconfirmed"
+                ),
                 evidence_event_ids=evidence_ids,
                 confidence="medium",
                 recommended_runbook_id=None,
@@ -167,7 +169,12 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
             from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=self.api_key)
+            client = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(
+                    timeout=int(settings.ANALYSIS_TIMEOUT_SECONDS * 1000)
+                ),
+            )
 
             sanitized_err = sanitize_logs(last_error or "Service health probe failure")
             clean_probes = [
@@ -200,8 +207,7 @@ CRITICAL SAFETY RULES:
 - If degraded or ambiguous, recommended_runbook_id must be null and requires_human_review must be true.
 """
 
-            response = await asyncio.to_thread(
-                client.models.generate_content,
+            response = await client.aio.models.generate_content(
                 model=self.model_id,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -236,6 +242,8 @@ CRITICAL SAFETY RULES:
             return result
         finally:
             if client is not None:
+                with suppress(Exception):
+                    await client.aio.aclose()
                 with suppress(Exception):
                     client.close()
 

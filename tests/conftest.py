@@ -9,7 +9,6 @@ import tempfile
 
 import pytest
 
-
 test_directory = tempfile.TemporaryDirectory(
     prefix="rebound-tests-", ignore_cleanup_errors=True
 )
@@ -22,7 +21,8 @@ with ExitStack() as stack:
 os.environ.update(
     {
         "ENVIRONMENT": "demo",
-        "DATABASE_URL": f"sqlite+aiosqlite:///{(Path(test_directory.name) / 'tests.sqlite').as_posix()}",
+        "DATABASE_URL": os.environ.get("REBOUND_TEST_DATABASE_URL")
+        or f"sqlite+aiosqlite:///{(Path(test_directory.name) / 'tests.sqlite').as_posix()}",
         "RUNNER_CONTROL_PORT": str(control_port),
         "RUNNER_DEMO_PORT": str(service_port),
         "RUNNER_CONTROL_URL": f"http://127.0.0.1:{control_port}",

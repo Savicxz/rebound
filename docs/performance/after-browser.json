@@ -1,0 +1,43 @@
+{
+  "label": "after",
+  "elapsed_ms": 27896,
+  "dashboardRequests": 22,
+  "incidentRequests": 0,
+  "maximumConcurrent": 1,
+  "commit_return_to_visible_ms": 373,
+  "runs": [
+    {
+      "injection_to_detection_ms": 7563,
+      "detection_to_analysis_record_ms": 34,
+      "execution_start_to_verified_ms": 3999,
+      "resolution_record_to_visible_ms": 626
+    },
+    {
+      "injection_to_detection_ms": 7137,
+      "detection_to_analysis_record_ms": 28,
+      "execution_start_to_verified_ms": 3990,
+      "resolution_record_to_visible_ms": 417
+    }
+  ],
+  "rendering": {
+    "frame_p95_ms": 16.700000000000728,
+    "longest_frame_ms": 133.3,
+    "long_tasks": 1,
+    "longest_task_ms": 145,
+    "sse_types": [
+      "COMMITTED",
+      "COMMITTED",
+      "COMMITTED",
+      "COMMITTED",
+      "COMMITTED",
+      "COMMITTED",
+      "COMMITTED",
+      "COMMITTED",
+      "COMMITTED",
+      "COMMITTED"
+    ],
+    "committed_sse_messages": 23,
+    "repeated_locale_1000_ms": 41.79999999701977,
+    "reused_formatter_1000_ms": 1.699999999254942
+  }
+}

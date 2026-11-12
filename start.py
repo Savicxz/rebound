@@ -61,7 +61,19 @@ def main():
         action="store_true",
         help="Do not open the dashboard automatically",
     )
+    parser.add_argument(
+        "--production-web",
+        action="store_true",
+        help="Serve an existing Next.js production build instead of the dev server",
+    )
     args = parser.parse_args()
+    if (
+        args.production_web
+        and not (WEB / ".next-production" / "standalone" / "server.js").is_file()
+    ):
+        raise RuntimeError(
+            "Production web build is missing. Run cd apps/web then npm ci and npm run build:production before python start.py --production-web."
+        )
     print("Checking local demo prerequisites...", flush=True)
     npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
     if not npm or not shutil.which("node"):
@@ -212,7 +224,18 @@ def main():
             monitor,
             check=monitor_has_probed,
         )
-        web = start("web", [npm, "run", "dev"], cwd=WEB)
+        if args.production_web:
+            environment["PORT"] = "3000"
+            environment["HOSTNAME"] = "127.0.0.1"
+        command = (
+            [
+                shutil.which("node"),
+                str(WEB / ".next-production" / "standalone" / "server.js"),
+            ]
+            if args.production_web
+            else [npm, "run", "dev"]
+        )
+        web = start("web", command, cwd=WEB)
         wait_ready("dashboard", "http://127.0.0.1:3000", web, timeout=120)
         print(
             "\nRebound is ready: http://localhost:3000\nKeep this terminal open. Press Ctrl+C to stop all services.",

@@ -2,12 +2,16 @@ import { DashboardData, Incident } from "../types";
 
 export const utcTime = (value: string) =>
   new Date(/(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : `${value}Z`).getTime();
+const clockFormatter = new Intl.DateTimeFormat("en-MY", {
+  timeZone: "Asia/Kuala_Lumpur",
+  hour12: false,
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
 export const formatClock = (value?: string | null) =>
   value
-    ? new Date(utcTime(value)).toLocaleTimeString("en-MY", {
-        timeZone: "Asia/Kuala_Lumpur",
-        hour12: false,
-      }) + " MYT"
+    ? clockFormatter.format(new Date(utcTime(value))) + " MYT"
     : "Not recorded";
 
 export function demoPhase(

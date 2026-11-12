@@ -1,3 +1,4 @@
+from services.api.http_client import internal_client
 from datetime import datetime, timezone
 from typing import Tuple, Optional
 import httpx
@@ -190,8 +191,8 @@ async def execute_runbook(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(target_endpoint, headers=headers)
+        async with internal_client(timeout=10.0) as client:
+            resp = await client.post(target_endpoint, headers=headers, timeout=10.0)
             if resp.status_code == 200:
                 data = resp.json()
                 return True, data.get("message", "Runbook executed successfully")

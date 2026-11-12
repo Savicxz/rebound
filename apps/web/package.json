@@ -9,7 +9,8 @@
     "test:e2e": "playwright test",
     "check": "tsc --noEmit && node scripts/check-overview.cjs",
     "format": "prettier --write src scripts e2e playwright.config.ts *.json *.js *.mjs",
-    "format:check": "prettier --check src scripts e2e playwright.config.ts *.json *.js *.mjs"
+    "format:check": "prettier --check src scripts e2e playwright.config.ts *.json *.js *.mjs",
+    "build:production": "node scripts/build-production.cjs"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",
