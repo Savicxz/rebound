@@ -165,23 +165,23 @@ export default function AuditView({ events }: { events: IncidentEvent[] }) {
             complete data.
           </caption>
           <colgroup>
-            <col className="w-[19%]" />
-            <col className="w-[25%]" />
+            <col className="w-48" />
+            <col className="w-60" />
             <col />
-            <col className="w-20" />
+            <col className="w-32" />
           </colgroup>
           <thead className="border-b border-stone-200 bg-stone-50 text-xs text-stone-500">
             <tr>
-              <th scope="col" className="p-4 font-medium">
+              <th scope="col" className="px-5 py-4 font-medium">
                 Time / incident
               </th>
-              <th scope="col" className="p-4 font-medium">
+              <th scope="col" className="px-5 py-4 font-medium">
                 Actor / event
               </th>
-              <th scope="col" className="p-4 font-medium">
+              <th scope="col" className="px-5 py-4 font-medium">
                 Recorded message
               </th>
-              <th scope="col" className="p-3">
+              <th scope="col" className="px-5 py-4">
                 <span className="sr-only">Inspect data</span>
               </th>
             </tr>
@@ -189,29 +189,31 @@ export default function AuditView({ events }: { events: IncidentEvent[] }) {
           <tbody className="divide-y divide-stone-200">
             {filtered.map((event) => (
               <tr key={event.id} className="align-top hover:bg-stone-50/50">
-                <td className="p-4">
+                <td className="px-5 py-4">
                   <time
                     dateTime={event.at}
-                    className="block text-xs tabular-nums text-stone-700"
+                    className="block text-xs leading-5 tabular-nums text-stone-700"
                   >
                     {date(event.at)} MYT
                   </time>
-                  <p className="mt-2 break-all font-mono text-xs text-stone-500">
+                  <p className="mt-1 break-all font-mono text-xs leading-5 text-stone-500">
                     {event.incident_id.slice(0, 8)} / #{event.sequence}
                   </p>
                 </td>
-                <td className="p-4">
+                <td className="px-5 py-4">
                   <p className="break-words font-medium text-stone-800">
                     {event.actor_id}
                   </p>
-                  <code className="mt-2 block break-all text-xs text-stone-500">
+                  <code className="mt-1 block break-words text-xs leading-5 text-stone-500 [overflow-wrap:anywhere]">
                     {event.event_type}
                   </code>
                 </td>
-                <td className="whitespace-pre-wrap break-words p-4 leading-relaxed text-stone-700 [overflow-wrap:anywhere]">
+                <td className="whitespace-pre-wrap break-words px-5 py-4 leading-relaxed text-stone-700 [overflow-wrap:anywhere]">
                   {event.public_message}
                 </td>
-                <td className="p-2">{inspect(event)}</td>
+                <td className="px-5 py-4 align-middle text-right">
+                  {inspect(event)}
+                </td>
               </tr>
             ))}
           </tbody>
