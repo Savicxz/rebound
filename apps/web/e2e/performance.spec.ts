@@ -108,6 +108,7 @@ test("repeatable live performance sample", async ({ page }, testInfo) => {
     });
   }
   // Commit-return to a rendered recorded event, with the timeline already expanded.
+  await page.getByText("Advanced technical evidence", { exact: true }).click();
   await page.getByText(/Incident event timeline \(/).click();
   const data = await (await page.request.get("/api/v1/dashboard")).json();
   expect(

@@ -291,34 +291,48 @@ export default function IncidentSummary(props: SummaryData) {
                 : "Rebound detected the failure, preserved the evidence, and prevented an unapproved restart. Human investigation is required."
               : "An execution receipt alone does not prove recovery. Wait for the verification result."}
       </p>
-      <p className="mt-4 text-xs leading-relaxed text-stone-500">
-        {action
-          ? `${action.runbook_id}: ${action.status}. ${action.runner_response_redacted || ""}`
-          : "No recovery action recorded."}
-      </p>
+      {action?.status === "SUCCESS" && !reset && (
+        <p className="mt-3 text-sm font-medium text-stone-800">
+          {action.runbook_id === "REPLAY_DEMO_ATTENDANCE_QUEUE"
+            ? "Approved action completed: replay the synthetic attendance queue."
+            : "Approved action completed: restart the isolated service."}
+        </p>
+      )}
       <p className="mt-2 text-xs text-stone-500">{providerName(incident)}</p>
-      {run && (
-        <p className="mt-2 text-xs text-stone-500">
-          PID before: {run.runtime_before.child_pid ?? "not recorded"} / latest
-          observed:{" "}
-          {runtime?.child_pid ??
-            (runtime && !runtime.child_running
-              ? "stopped"
-              : "not available")}{" "}
-          {stale ? "/ evidence may be stale" : ""}
+      <details className="mt-3 border-t border-stone-200 pt-2">
+        <summary className="text-sm text-stone-600">
+          Recovery execution details
+        </summary>
+        <p className="mt-4 text-xs leading-relaxed text-stone-500">
+          {action
+            ? `${action.runbook_id}: ${action.status}. ${action.runner_response_redacted || ""}`
+            : "No recovery action recorded."}
         </p>
-      )}
-      {review && !attempted && (
-        <p className="mt-3 text-sm text-stone-600">
-          <strong>Policy decision:</strong>{" "}
-          {incident.events.find(
-            (event) => event.event_type === "POLICY_EVALUATED",
-          )?.public_message || "No policy verdict recorded."}
-        </p>
-      )}
+        {run && (
+          <p className="mt-2 text-xs text-stone-500">
+            PID before: {run.runtime_before.child_pid ?? "not recorded"} /
+            latest observed:{" "}
+            {runtime?.child_pid ??
+              (runtime && !runtime.child_running
+                ? "stopped"
+                : "not available")}{" "}
+            {stale ? "/ evidence may be stale" : ""}
+          </p>
+        )}
+        {review && !attempted && (
+          <p className="mt-3 text-sm text-stone-600">
+            <strong>Policy decision:</strong>{" "}
+            {incident.events.find(
+              (event) => event.event_type === "POLICY_EVALUATED",
+            )?.public_message || "No policy verdict recorded."}
+          </p>
+        )}
+      </details>
       <p className="mt-3 text-sm text-stone-600">
         {verified && !reset
-          ? "Operational value: service access restored with a bounded action and independently checked evidence."
+          ? run?.scenario_id === "attendance_backlog"
+            ? "Check the attendance response for pending and processed counts. Health verification is separate from that request."
+            : "Operational value: service access restored with a bounded action and independently checked evidence."
           : review
             ? "Operational value: an uncertain fault stays under human control; no recovery is assumed."
             : "Evidence remains available for investigation."}
