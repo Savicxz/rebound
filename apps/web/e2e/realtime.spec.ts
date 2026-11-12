@@ -127,7 +127,7 @@ test("incident history loads summaries and fetches full evidence only on selecti
   ).toBeTruthy();
   await expect(
     page.getByRole("heading", {
-      name: "Unsafe restart prevented.",
+      name: "Automatic recovery safely blocked",
       exact: true,
     }),
   ).toBeVisible();
