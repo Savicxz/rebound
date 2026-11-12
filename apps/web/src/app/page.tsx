@@ -20,6 +20,11 @@ export default function Home() {
   const [incidentsError, setIncidentsError] = useState<string | null>(null);
   const [incidentsLoaded, setIncidentsLoaded] = useState(false);
   const dashboardRequest = useRef(0);
+  const dashboardFlight = useRef<Promise<void> | null>(null);
+  const dashboardQueued = useRef(false);
+  const incidentFlight = useRef<Promise<void> | null>(null);
+  const incidentQueued = useRef(false);
+  const lifetime = useRef<AbortController | null>(null);
   const incidentRequest = useRef(0);
   const currentTabRef = useRef(currentTab);
   currentTabRef.current = currentTab;
@@ -60,111 +65,171 @@ export default function Home() {
     }
   }, []);
 
-  // Fetch Dashboard Telemetry
-  const fetchDashboard = useCallback(async () => {
+  // One active request plus one trailing reconciliation per resource. Event bursts
+  // cannot overlap requests or overwrite a newer snapshot with an older response.
+  const fetchDashboard = useCallback((): Promise<void> => {
+    if (dashboardFlight.current) {
+      dashboardQueued.current = true;
+      return dashboardFlight.current;
+    }
     const request = ++dashboardRequest.current;
-    try {
-      const res = await fetch("/api/v1/dashboard", {
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) throw new Error(`Dashboard returned HTTP ${res.status}`);
-      const data: DashboardData = await res.json();
-      if (request !== dashboardRequest.current) return;
-      setDashboardData(data);
-      setLastUpdated(new Date().toISOString());
-      setDashboardError(null);
-    } catch (e) {
-      if (request !== dashboardRequest.current) return;
-      setDashboardError(
-        "Unable to refresh service data. Check that the API is running and try again.",
-      );
-    }
+    const controller = lifetime.current;
+    const flight = (async () => {
+      do {
+        dashboardQueued.current = false;
+        try {
+          const res = await fetch("/api/v1/dashboard", {
+            signal: AbortSignal.any([
+              ...(controller ? [controller.signal] : []),
+              AbortSignal.timeout(10000),
+            ]),
+          });
+          if (!res.ok) throw new Error(`Dashboard returned HTTP ${res.status}`);
+          const data: DashboardData = await res.json();
+          if (
+            controller?.signal.aborted ||
+            request !== dashboardRequest.current
+          )
+            return;
+          setDashboardData((previous) =>
+            JSON.stringify(previous) === JSON.stringify(data) ? previous : data,
+          );
+          setLastUpdated(new Date().toISOString());
+          setDashboardError(null);
+        } catch {
+          if (
+            controller?.signal.aborted ||
+            request !== dashboardRequest.current
+          )
+            return;
+          setDashboardError(
+            "Unable to refresh service data. Check that the API is running and try again.",
+          );
+        }
+      } while (dashboardQueued.current && !controller?.signal.aborted);
+    })().finally(() => {
+      if (request === dashboardRequest.current) dashboardFlight.current = null;
+    });
+    dashboardFlight.current = flight;
+    return flight;
   }, []);
 
-  // Fetch Incidents List
-  const fetchIncidents = useCallback(async () => {
+  const fetchIncidents = useCallback((): Promise<void> => {
+    if (incidentFlight.current) {
+      incidentQueued.current = true;
+      return incidentFlight.current;
+    }
     const request = ++incidentRequest.current;
-    try {
-      const res = await fetch("/api/v1/incidents", {
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) throw new Error("Incident history unavailable");
-      if (res.ok) {
-        const data: Incident[] = await res.json();
-        if (request !== incidentRequest.current) return;
-        setIncidents(data);
-        setIncidentsError(null);
-        setIncidentsLoaded(true);
-      }
-    } catch (e) {
-      if (request === incidentRequest.current)
-        setIncidentsError(
-          "Incident history could not be refreshed. Existing records may be stale.",
-        );
-    }
+    const controller = lifetime.current;
+    const flight = (async () => {
+      do {
+        incidentQueued.current = false;
+        try {
+          const res = await fetch("/api/v1/incidents?include_evidence=false", {
+            signal: AbortSignal.any([
+              ...(controller ? [controller.signal] : []),
+              AbortSignal.timeout(10000),
+            ]),
+          });
+          if (!res.ok) throw new Error("Incident history unavailable");
+          const data: Incident[] = await res.json();
+          if (controller?.signal.aborted || request !== incidentRequest.current)
+            return;
+          setIncidents((previous) =>
+            JSON.stringify(previous) === JSON.stringify(data) ? previous : data,
+          );
+          setIncidentsError(null);
+          setIncidentsLoaded(true);
+        } catch {
+          if (
+            !controller?.signal.aborted &&
+            request === incidentRequest.current
+          )
+            setIncidentsError(
+              "Incident history could not be refreshed. Existing records may be stale.",
+            );
+        }
+      } while (incidentQueued.current && !controller?.signal.aborted);
+    })().finally(() => {
+      if (request === incidentRequest.current) incidentFlight.current = null;
+    });
+    incidentFlight.current = flight;
+    return flight;
   }, []);
 
-  // Initial load & seed login
   useEffect(() => {
-    fetchDashboard();
-    fetchIncidents();
-  }, [loginUser, fetchDashboard, fetchIncidents]);
-
-  // Real-time Server-Sent Events (SSE) Stream
-  useEffect(() => {
-    let eventSource: EventSource | null = null;
-    let fallbackTimer: NodeJS.Timeout | null = null;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let disposed = false;
-
-    const connectSSE = () => {
-      if (disposed) return;
-      try {
-        eventSource = new EventSource("/api/v1/events/stream");
-
-        eventSource.onopen = () => {
-          setSseConnected(true);
-        };
-
-        eventSource.onmessage = (e) => {
-          try {
-            const parsed = JSON.parse(e.data);
-            if (parsed.type !== "HEARTBEAT") {
-              fetchDashboard();
-              fetchIncidents();
-            }
-          } catch (err) {
-            console.error("SSE parse error:", err);
-          }
-        };
-
-        eventSource.onerror = () => {
-          setSseConnected(false);
-          eventSource?.close();
-          // Retry connection after 5 seconds
-          retryTimer = setTimeout(connectSSE, 5000);
-        };
-      } catch (err) {
-        setSseConnected(false);
-        retryTimer = setTimeout(connectSSE, 5000);
-      }
+    lifetime.current = new AbortController();
+    dashboardFlight.current = null;
+    incidentFlight.current = null;
+    void fetchDashboard();
+    return () => {
+      lifetime.current?.abort();
+      dashboardRequest.current++;
+      incidentRequest.current++;
     };
+  }, [fetchDashboard]);
 
-    connectSSE();
+  useEffect(() => {
+    if (currentTab === "incidents") void fetchIncidents();
+  }, [currentTab, fetchIncidents]);
 
-    // Fallback polling every 5 seconds to ensure UI is never stale
-    fallbackTimer = setInterval(() => {
-      fetchDashboard();
-      if (currentTabRef.current === "incidents") {
-        fetchIncidents();
-      }
+  useEffect(() => {
+    let disposed = false;
+    let healthy = false;
+    let revision = "";
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let source: EventSource;
+    let lastReconciliation = Date.now();
+    const reconcile = () => {
+      lastReconciliation = Date.now();
+      void fetchDashboard();
+      if (currentTabRef.current === "incidents") void fetchIncidents();
+    };
+    const schedule = () => {
+      if (debounce) return;
+      debounce = setTimeout(() => {
+        debounce = undefined;
+        reconcile();
+      }, 100);
+    };
+    const connect = () => {
+      if (disposed) return;
+      source = new EventSource("/api/v1/events/stream");
+      source.onopen = () => {
+        healthy = true;
+        setSseConnected(true);
+        schedule();
+      };
+      source.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === "HEARTBEAT") return;
+          if (event.lastEventId && event.lastEventId === revision) return;
+          revision = event.lastEventId;
+          schedule();
+        } catch {
+          healthy = false;
+          setSseConnected(false);
+        }
+      };
+      source.onerror = () => {
+        healthy = false;
+        setSseConnected(false);
+        source.close();
+        retry = setTimeout(connect, 5000);
+      };
+    };
+    connect();
+    const timer = setInterval(() => {
+      if (!healthy || Date.now() - lastReconciliation >= 15000) reconcile();
     }, 5000);
-
     return () => {
       disposed = true;
-      eventSource?.close();
-      if (fallbackTimer) clearInterval(fallbackTimer);
-      if (retryTimer) clearTimeout(retryTimer);
+      source?.close();
+      clearInterval(timer);
+      clearTimeout(retry);
+      clearTimeout(debounce);
     };
   }, [fetchDashboard, fetchIncidents]);
 
