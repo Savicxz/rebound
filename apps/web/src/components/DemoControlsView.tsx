@@ -224,6 +224,12 @@ export default function DemoControlsView({
         "Fault injection accepted. The student request and independent monitor now observe the same isolated workload.",
       );
       dialog.current?.close();
+      document.getElementById("studio-workspace")?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+        block: "start",
+      });
       await capture("during").catch(() => {});
     } catch (error) {
       setFailed(true);
@@ -244,7 +250,7 @@ export default function DemoControlsView({
       observedIncident.state,
     );
   return (
-    <div className="demo-studio space-y-6">
+    <div className="demo-studio space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="ui-eyebrow">A guided, real-request demonstration</p>
@@ -341,15 +347,16 @@ export default function DemoControlsView({
             {hasRun ? "Current demonstration" : "Ready to introduce a failure?"}
           </p>
           <h2 className="mt-1 text-base font-semibold">
-            {unsupported ? "Existing sandbox run" : info.title}
+            {unsupported
+              ? "Existing sandbox run"
+              : studioScenarios[currentScenario].title}
           </h2>
           <p className="mt-1 text-xs leading-relaxed text-stone-500">
-            {reason ||
-              (terminal && observedIncident
-                ? observedIncident.state === "RESOLVED"
-                  ? `Verified recovery: ${measuredRecovery(observedIncident)} from incident detection.`
-                  : "Automatic recovery stopped for human review. No verified recovery is claimed."
-                : `Expected: ${info.result}`)}
+            {terminal && observedIncident
+              ? observedIncident.state === "RESOLVED"
+                ? `Verified recovery: ${measuredRecovery(observedIncident)} from incident detection.`
+                : "Automatic recovery stopped for human review. No verified recovery is claimed."
+              : reason || `Expected: ${info.result}`}
           </p>
           {terminal && (
             <a
@@ -409,7 +416,7 @@ export default function DemoControlsView({
           )}
         </div>
       </section>
-      {feedback && (
+      {feedback && (!terminal || failed) && (
         <p role={failed ? "alert" : "status"} className="ui-notice">
           {feedback}
           {failed && (
@@ -423,7 +430,7 @@ export default function DemoControlsView({
           )}
         </p>
       )}
-      {hasRun && (
+      {hasRun && !terminal && (
         <p className="text-xs text-stone-500">
           Next:{" "}
           {unsupported
@@ -433,7 +440,10 @@ export default function DemoControlsView({
               : "Watch the student request on the left and the independent monitoring evidence on the right."}
         </p>
       )}
-      <div className="studio-workspace grid items-start gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.25fr)]">
+      <div
+        id="studio-workspace"
+        className="studio-workspace grid items-start gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.25fr)]"
+      >
         <div className="min-w-0 lg:sticky lg:top-24">
           <StudentServicePanel
             scenario={currentScenario}
@@ -459,9 +469,43 @@ export default function DemoControlsView({
               run && !isStudioScenario(run.scenario_id)
                 ? catalog.find((item) => item.id === run.scenario_id)?.title ||
                   run.scenario_id.replaceAll("_", " ")
-                : studioScenarios[currentScenario].title
+                : studioScenarios[
+                    run && isStudioScenario(run.scenario_id)
+                      ? run.scenario_id
+                      : currentScenario
+                  ].title
             }
             compact
+            outcomeActions={
+              terminal ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="ui-button"
+                    disabled={!!operation || !!unavailable || unsupported}
+                    onClick={() => {
+                      setSelected(currentScenario);
+                      confirm("replay");
+                    }}
+                  >
+                    Replay this scenario
+                  </button>
+                  <button
+                    className="ui-button"
+                    disabled={!!operation || !!unavailable}
+                    onClick={() => {
+                      setSelected(
+                        currentScenario === "degraded" ? "crash" : "degraded",
+                      );
+                      confirm("replay");
+                    }}
+                  >
+                    {currentScenario === "degraded"
+                      ? "Try automatic recovery"
+                      : "Try human-review scenario"}
+                  </button>
+                </div>
+              ) : undefined
+            }
             onIncidentChange={observe}
             studentReceipts={receipts}
           />

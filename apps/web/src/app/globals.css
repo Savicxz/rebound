@@ -535,3 +535,67 @@ textarea {
 .studio-outcome {
   scroll-margin-top: 8rem;
 }
+.demo-studio {
+  overflow-wrap: anywhere;
+}
+.demo-studio > header h1 {
+  font-size: 1.875rem;
+}
+.demo-studio > header p:last-child {
+  margin-top: 0.5rem;
+}
+.demo-studio > details {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.studio-workspace {
+  scroll-margin-top: 6rem;
+}
+.studio-workspace > div {
+  min-width: 0;
+}
+.student-course {
+  border-block: 1px solid rgb(var(--neutral-200));
+}
+.student-browser {
+  border: 0;
+  border-radius: 0.5rem;
+}
+.studio-outcome {
+  margin: 0 1.25rem 1.25rem;
+  border-radius: 0.5rem;
+  border-width: 0;
+  border-left-width: 3px;
+  animation: outcome-reveal 220ms ease-out;
+}
+.studio-outcome h3 {
+  line-height: 1.35;
+  align-items: flex-start;
+}
+.studio-outcome h3 svg {
+  flex-shrink: 0;
+}
+@keyframes outcome-reveal {
+  from {
+    opacity: 0.4;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-outcome {
+    animation: none;
+  }
+}
+@media (max-width: 639px) {
+  .studio-outcome {
+    margin: 0 1rem 1rem;
+    padding: 1rem;
+  }
+  .studio-control .ui-button {
+    flex-grow: 1;
+  }
+}

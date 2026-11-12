@@ -50,18 +50,32 @@ export default function StudentServicePanel({
         </span>
         <span className="state-tag">Simulated</span>
       </header>
-      <div className="p-5 sm:p-6">
+      <div className="p-4 sm:p-5">
         <p className="ui-eyebrow">01 / What a student experiences</p>
         <h2
           id="student-service-title"
-          className="mt-3 text-2xl font-semibold text-stone-900"
+          className="mt-2 text-2xl font-semibold text-stone-900"
         >
           {info.service}
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
           {info.problem}
         </p>
-        <div className="student-browser mt-6 rounded-xl border border-stone-200 bg-stone-50 p-4">
+        <div className="mt-3">
+          <button
+            className="ui-button ui-button-primary w-full"
+            disabled={busy || disabled}
+            onClick={onRequest}
+          >
+            {busy
+              ? "Request in flight..."
+              : error
+                ? "Retry service request"
+                : info.action}
+            <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="student-browser mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
           <div className="mb-4 flex items-center justify-between gap-3 border-b border-stone-200 pb-3">
             <span className="text-xs text-stone-500">
               Demo student / sample workspace
@@ -82,10 +96,27 @@ export default function StudentServicePanel({
                 ? "Semester 1 / registration access"
                 : "Synthetic records only / no student identities"}
           </p>
+          {scenario !== "attendance_backlog" && (
+            <div className="student-course mt-3 flex items-center justify-between gap-3 py-3 text-sm">
+              <div>
+                <p className="font-medium">
+                  {scenario === "crash"
+                    ? "Week 04 lecture notes"
+                    : "NET204 / Computer networks"}
+                </p>
+                <p className="mt-1 text-xs text-stone-500">
+                  {scenario === "crash"
+                    ? "PDF / sample course material"
+                    : "3 credits / sample course only"}
+                </p>
+              </div>
+              <BookOpen aria-hidden="true" className="h-5 w-5 shrink-0" />
+            </div>
+          )}
           <div
             role="status"
             aria-live="polite"
-            className="my-5 min-h-28 rounded-lg border border-stone-200 bg-white p-4"
+            className="my-3 min-h-24 rounded-lg border border-stone-200 bg-white p-4"
           >
             {busy ? (
               <div className="flex items-center gap-3 text-sm">
@@ -108,7 +139,7 @@ export default function StudentServicePanel({
               <>
                 <p className="font-medium">Not tested yet</p>
                 <p className="mt-2 text-sm text-stone-500">
-                  Use the button below, or start the demonstration to capture
+                  Use the service button, or start the demonstration to capture
                   baseline and failure requests.
                 </p>
               </>
@@ -116,7 +147,14 @@ export default function StudentServicePanel({
               <>
                 <p className="flex items-center gap-2 font-medium">
                   <Check aria-hidden="true" className="h-4 w-4" />
-                  Service request succeeded
+                  {latest.stage === "after" &&
+                  receipts.some(
+                    (receipt) =>
+                      receipt.scenario_id === scenario &&
+                      receipt.http_status !== 200,
+                  )
+                    ? "Access restored / request succeeded"
+                    : "Service request succeeded"}
                 </p>
                 <p className="mt-2 text-sm text-stone-600">
                   {scenario === "attendance_backlog" && pending !== undefined
@@ -146,18 +184,6 @@ export default function StudentServicePanel({
               </>
             )}
           </div>
-          <button
-            className="ui-button ui-button-primary w-full"
-            disabled={busy || disabled}
-            onClick={onRequest}
-          >
-            {busy
-              ? "Request in flight..."
-              : error
-                ? "Retry service request"
-                : info.action}
-            <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
-          </button>
           {latest && (
             <p
               className="mt-3 font-mono text-xs leading-relaxed text-stone-600"
@@ -194,6 +220,16 @@ export default function StudentServicePanel({
                   </span>{" "}
                   / {receipt.http_status ?? "No response"} /{" "}
                   {receipt.latency_ms} ms
+                  {receipt.response.attendance ? (
+                    <span className="block mt-1">
+                      {receipt.response.attendance.pending} pending /{" "}
+                      {receipt.response.attendance.processed} processed
+                    </span>
+                  ) : receipt.response.queued_records !== undefined ? (
+                    <span className="block mt-1">
+                      {receipt.response.queued_records} pending
+                    </span>
+                  ) : null}
                   <p className="mt-1 font-mono">
                     {formatClock(receipt.checked_at)}
                   </p>
