@@ -18,6 +18,7 @@ export interface SummaryData {
   checks: HealthObservation[];
   receipts: StudentReceipt[];
   stale: boolean;
+  actions?: React.ReactNode;
   runtime: {
     child_pid: number | null;
     child_running: boolean | null;
@@ -276,7 +277,7 @@ export default function IncidentSummary(props: SummaryData) {
             : review
               ? attempted
                 ? "Recovery needs human attention."
-                : "Unsafe restart prevented."
+                : "Automatic recovery safely blocked"
               : "The result is still pending."}
       </h3>
       <p className="mt-3 text-sm leading-relaxed text-stone-600">
@@ -287,7 +288,7 @@ export default function IncidentSummary(props: SummaryData) {
             : review
               ? attempted
                 ? "A recovery action was attempted, but independent verification has not confirmed recovery. Review the recorded execution and incident evidence."
-                : "Rebound recorded the fault and stopped for human investigation. No approved automated fix matched this evidence."
+                : "Rebound detected the failure, preserved the evidence, and prevented an unapproved restart. Human investigation is required."
               : "An execution receipt alone does not prove recovery. Wait for the verification result."}
       </p>
       <p className="mt-4 text-xs leading-relaxed text-stone-500">
@@ -307,7 +308,23 @@ export default function IncidentSummary(props: SummaryData) {
           {stale ? "/ evidence may be stale" : ""}
         </p>
       )}
-      <button className="ui-button mt-5" onClick={print}>
+      {review && !attempted && (
+        <p className="mt-3 text-sm text-stone-600">
+          <strong>Policy decision:</strong>{" "}
+          {incident.events.find(
+            (event) => event.event_type === "POLICY_EVALUATED",
+          )?.public_message || "No policy verdict recorded."}
+        </p>
+      )}
+      <p className="mt-3 text-sm text-stone-600">
+        {verified && !reset
+          ? "Operational value: service access restored with a bounded action and independently checked evidence."
+          : review
+            ? "Operational value: an uncertain fault stays under human control; no recovery is assumed."
+            : "Evidence remains available for investigation."}
+      </p>
+      <div className="mt-4">{props.actions}</div>
+      <button className="ui-button mt-3" onClick={print}>
         <Printer aria-hidden="true" className="h-4 w-4" />
         Print incident summary
       </button>

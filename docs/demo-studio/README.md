@@ -99,3 +99,12 @@ is stubbed in the browser test; print-media rendering and report content are che
   incidents, but cannot recreate missing student-request history.
 - Chromium desktop/mobile emulation and print media are tested. Physical touch
   devices, other browser engines and native printer/PDF dialogs remain manual checks.
+## Final polish visual review (13 November 2026)
+
+The follow-up retains the existing Demo Studio and safety model. Before screenshots are preserved in `before-polish/`; current captures are in `screenshots/`. The older captures used 1440px desktop width; the new desktop captures use 1366 × 768. They are qualitative comparisons, not pixel-diff baselines.
+
+Actual PNGs were opened and inspected after the browser tests. The initial run exposed a student action at y=1046, below the desktop fold. Moving the request button above response details brought it within the initial viewport; Playwright now asserts its bottom edge is below 768px. Completed runs no longer retain the redundant injection notice and next-step paragraph. The reviewed dark human-review screen shows healthy baseline, failed HTTP 500, and current HTTP 500 separately, without claiming recovery. Outcome actions sit beside the result, and the mobile view wraps technical evidence without horizontal overflow.
+
+Reviewed captures: initial 1366px viewport, active detection with real counters, verified portal recovery, human review in dark mode, attendance replay at 390px with reduced motion, disconnected backend, and print-media report. The deterministic fallback finishes analysis and policy within the same worker cycle, so a stable active-analysis screenshot is not reproducible in this keyless test run. No delay or invented activity was added for photography. Native printer interaction and physical-device testing remain manual.
+
+Validation: `npm run check`, `npm run format:check`, and `npm run build` passed locally. Python: 47 tests passed. Chromium live journeys cover portal recovery, human review and cancelled cross-scenario confirmation, attendance replay, disconnection and reconnection, reset/replay, JSON and print-media evidence. No backend policy, authentication or API contracts changed; no runtime dependencies were added.
