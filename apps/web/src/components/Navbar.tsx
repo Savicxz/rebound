@@ -27,10 +27,16 @@ export default function Navbar({
     { id: "settings", label: "Settings" },
   ];
   return (
-    <header className="border-b border-stone-200 bg-white">
+    <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-x-8 gap-y-2 px-5 sm:px-8">
         <div className="flex min-h-16 items-center gap-3">
-          <p className="text-sm font-semibold tracking-tight text-stone-900">
+          <p className="flex items-center text-base font-semibold tracking-tight text-stone-900">
+            <span
+              aria-hidden="true"
+              className="mr-3 flex h-7 w-7 items-center justify-center rounded-md bg-primary text-xs text-on-primary"
+            >
+              R
+            </span>
             Rebound
             <span className="ml-3 text-xs font-normal text-stone-500">
               / sandbox
@@ -46,7 +52,7 @@ export default function Navbar({
               key={id}
               onClick={() => setCurrentTab(id)}
               aria-current={currentTab === id ? "page" : undefined}
-              className={`min-h-12 shrink-0 border-b-2 py-3 text-[13px] transition-colors lg:min-h-16 ${currentTab === id ? "border-stone-900 font-semibold text-stone-900" : "border-transparent text-stone-500 hover:text-stone-900"}`}
+              className={`relative min-h-12 shrink-0 border-b-2 px-1 py-3 text-[13px] lg:min-h-16 ${currentTab === id ? "border-stone-900 font-semibold text-stone-900" : "border-transparent text-stone-500 hover:border-stone-300 hover:text-stone-900"}`}
             >
               {label}
             </button>
@@ -60,9 +66,11 @@ export default function Navbar({
           >
             <span
               aria-hidden="true"
-              className={`h-1.5 w-1.5 rounded-full ${sseConnected ? "bg-emerald-600" : "bg-amber-600"}`}
+              className={`h-2 w-2 rounded-full border border-stone-600 ${sseConnected ? "bg-stone-800" : "bg-transparent"}`}
             />
-            {sseConnected ? "Live updates" : "Reconnecting"}
+            <span className="sr-only sm:not-sr-only">
+              {sseConnected ? "Live updates" : "Polling / reconnecting"}
+            </span>
           </p>
           <button
             onClick={onSwitchUser}

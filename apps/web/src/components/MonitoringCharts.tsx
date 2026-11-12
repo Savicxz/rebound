@@ -150,7 +150,7 @@ export default function MonitoringCharts({
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="ui-panel space-y-6 p-5 sm:p-6">
         <figure className="min-w-0 border-b border-stone-200 pb-5">
           <figcaption className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -158,7 +158,8 @@ export default function MonitoringCharts({
                 Response time
               </h3>
               <p className="mt-1 text-xs text-slate-500">
-                Successful checks only
+                Successful checks only / dots and line = passed / crosses =
+                failed
               </p>
             </div>
             <dl className="flex gap-5 text-right">
@@ -285,7 +286,7 @@ export default function MonitoringCharts({
                 </text>
               </svg>
               {stats.average == null && (
-                <p className="text-xs text-rose-700">
+                <p className="text-xs text-stone-700">
                   No successful response times in this sample.
                 </p>
               )}
@@ -328,6 +329,20 @@ export default function MonitoringCharts({
                 aria-label={`${checks.length} checks from oldest to newest: ${stats.passed} passed and ${stats.failed} failed`}
                 className="mt-4 h-6 w-full"
               >
+                <defs>
+                  <pattern
+                    id={`${prefix}-fail-hatch`}
+                    width="4"
+                    height="4"
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <path
+                      d="M-1 1L1 -1 M0 4L4 0 M3 5L5 3"
+                      stroke="var(--plot-failure)"
+                      strokeWidth="1"
+                    />
+                  </pattern>
+                </defs>
                 {checks.map((check, index) => (
                   <rect
                     key={check.id}
@@ -337,15 +352,20 @@ export default function MonitoringCharts({
                     height={check.success ? 24 : 28}
                     rx="0"
                     fill={
-                      check.success ? "var(--plot-line)" : "var(--plot-failure)"
+                      check.success
+                        ? "var(--plot-line)"
+                        : `url(#${prefix}-fail-hatch)`
                     }
+                    stroke={check.success ? "none" : "var(--plot-failure)"}
                   >
                     <title>{`${clock(check.observed_at)} - ${check.success ? "Passed" : "Failed"}`}</title>
                   </rect>
                 ))}
               </svg>
               <div className="mt-2 flex justify-between text-xs text-stone-500">
-                <span>Oldest recorded check</span>
+                <span>
+                  Oldest recorded check / solid = pass, hatched = fail
+                </span>
                 <span>Latest</span>
               </div>
             </>

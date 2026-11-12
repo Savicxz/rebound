@@ -13,9 +13,13 @@ export default function SettingsView({
     null,
   );
   const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/v1/settings", { signal: controller.signal })
+    setError(false);
+    fetch("/api/v1/settings", {
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error("Settings unavailable");
         setSettings(await response.json());
@@ -24,7 +28,7 @@ export default function SettingsView({
         if (!controller.signal.aborted) setError(true);
       });
     return () => controller.abort();
-  }, []);
+  }, [retry]);
   const providerLabels = {
     not_configured: "No Gemini API key configured",
     configured: "Configured; no recorded result yet",
@@ -73,7 +77,8 @@ export default function SettingsView({
   return (
     <section className="max-w-4xl space-y-5">
       <header>
-        <h1 className="text-2xl font-semibold text-stone-900">
+        <p className="ui-eyebrow">Workspace / configuration</p>
+        <h1 className="mt-2 text-3xl font-semibold text-stone-900">
           Runtime settings
         </h1>
         <p className="mt-2 text-sm text-stone-500">
@@ -82,11 +87,23 @@ export default function SettingsView({
         </p>
       </header>
       {error && (
-        <p role="alert" className="text-sm text-rose-700">
-          Could not load runtime settings. Refresh this view to retry.
-        </p>
+        <div
+          role="alert"
+          className="ui-notice flex items-center justify-between gap-3"
+        >
+          Could not load runtime settings.
+          <button
+            className="ui-button"
+            onClick={() => setRetry((value) => value + 1)}
+          >
+            Retry settings
+          </button>
+        </div>
       )}
-      <dl className="divide-y divide-stone-200 rounded-md border border-stone-200 bg-white px-5">
+      <dl
+        aria-busy={!settings && !error}
+        className="ui-panel divide-y divide-stone-200 px-5"
+      >
         {rows.map(([label, value]) => (
           <div
             key={String(label)}

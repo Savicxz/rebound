@@ -14,6 +14,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        white: "rgb(var(--surface-bg) / <alpha-value>)",
         slate: neutrals,
         stone: neutrals,
         background: "rgb(var(--page-bg) / <alpha-value>)",
@@ -21,13 +22,10 @@ module.exports = {
         card: "rgb(var(--surface-bg) / <alpha-value>)",
         border: "rgb(var(--neutral-200) / <alpha-value>)",
         primary: {
-          DEFAULT: "#3157d5",
-          hover: "#1d4ed8",
+          DEFAULT: "rgb(var(--action-bg) / <alpha-value>)",
+          hover: "rgb(var(--action-hover) / <alpha-value>)",
         },
-        accent: "#38bdf8",
-        success: "#10b981",
-        warning: "#f59e0b",
-        danger: "#ef4444",
+        "on-primary": "rgb(var(--action-fg) / <alpha-value>)",
       },
     },
   },

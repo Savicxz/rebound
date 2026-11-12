@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
+import ActivityIndicator from "./ActivityIndicator";
 import { IncidentEvent } from "../types";
 
 export function formatPayload(value?: string | null) {
@@ -90,7 +91,7 @@ export default function AuditView({ events }: { events: IncidentEvent[] }) {
     <button
       onClick={() => setSelected(event)}
       aria-label={`Inspect event ${event.event_type}, incident ${event.incident_id}, sequence ${event.sequence}`}
-      className="min-h-11 text-sm font-medium text-primary underline-offset-4 hover:underline"
+      className="ui-button text-xs"
     >
       Inspect
     </button>
@@ -100,7 +101,8 @@ export default function AuditView({ events }: { events: IncidentEvent[] }) {
     <section className="min-w-0 space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
+          <p className="ui-eyebrow">Evidence / event history</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">
             Audit trail
           </h1>
           <p className="mt-2 text-sm text-stone-500">
@@ -127,7 +129,7 @@ export default function AuditView({ events }: { events: IncidentEvent[] }) {
       {error && (
         <div
           role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 p-3 text-sm text-amber-800"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-stone-300/30 p-3 text-sm text-stone-900"
         >
           {error}
           <button
@@ -138,6 +140,15 @@ export default function AuditView({ events }: { events: IncidentEvent[] }) {
             Retry
           </button>
         </div>
+      )}
+      {loading && (
+        <p
+          role="status"
+          className="flex items-center gap-2 text-xs text-stone-600"
+        >
+          <ActivityIndicator className="!h-4 !w-4" />
+          Loading event history
+        </p>
       )}
       <p className="text-xs text-stone-500">
         {filtered.length} matching / {all.length} loaded.{" "}
