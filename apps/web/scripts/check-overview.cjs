@@ -42,7 +42,8 @@ charts._compile(
 const additionalViews = new Map();
 function loadView(name) {
   if (additionalViews.has(name)) return additionalViews.get(name);
-  const source = path.resolve(__dirname, "../src/components", `${name}.tsx`);
+  const base = path.resolve(__dirname, "../src/components", name);
+  const source = fs.existsSync(`${base}.tsx`) ? `${base}.tsx` : `${base}.ts`;
   const loaded = new Module(source, module);
   loaded.filename = source;
   loaded.paths = module.paths;
@@ -71,8 +72,8 @@ component.require = (name) =>
       )
     : name === "./MonitoringCharts"
       ? charts.exports
-      : name.startsWith("./")
-        ? loadView(name.slice(2))
+      : name.startsWith("./") || name.startsWith("../lib/")
+        ? loadView(name.startsWith("./") ? name.slice(2) : name)
         : originalRequire(name);
 component._compile(compiled, filename);
 const View = component.exports.default;
@@ -186,7 +187,11 @@ const renderDemo = (data) =>
   renderToStaticMarkup(
     React.createElement(demo.exports.default, {
       data,
-      currentUser: { username: "operator", role: "OPERATOR" },
+      currentUser: {
+        username: "operator",
+        role: "OPERATOR",
+        token: "test-token",
+      },
     }),
   );
 assert.match(renderDemo(null), /Waiting for service data/);
@@ -204,8 +209,8 @@ demoData.active_incident = {
   runbook_executions: [],
 };
 assert.match(renderDemo(demoData), /Blocked for human review/);
-assert.match(renderDemo(demoData), /paused for human review/);
-assert.match(renderDemo(demoData), /See an incident through to its outcome/);
+assert.match(renderDemo(demoData), /Human review required/);
+assert.match(renderDemo(demoData), /Failure, understood/);
 assert.match(renderDemo(demoData), /Download evidence JSON/);
 const newRun = renderDemo({
   ...demoData,
@@ -213,7 +218,7 @@ const newRun = renderDemo({
     id: "new-run",
     scenario_id: "wifi_mesh",
     service_id: "service-a",
-    injected_at: "2026-11-13T01:00:00Z",
+    injected_at: new Date().toISOString(),
     incident_id: null,
     baseline: { http_status: 200, latency_ms: 3.2 },
     runtime_before: { child_pid: 123 },
@@ -221,7 +226,7 @@ const newRun = renderDemo({
     check_interval_seconds: 5,
   },
 });
-assert.match(newRun, /Fault injected. Watching for repeated failures/);
+assert.match(newRun, /Waiting for health checks/);
 assert.doesNotMatch(newRun, /demo-1/);
 assert.match(newRun, /0 of 3 failed checks recorded/);
 assert.match(
@@ -257,7 +262,7 @@ const navigation = renderToStaticMarkup(
 );
 assert.match(navigation, /aria-label="Main navigation"/);
 assert.equal((navigation.match(/aria-current="page"/g) || []).length, 1);
-assert.match(navigation, /Reconnecting/);
+assert.match(navigation, /Polling \/ reconnecting/);
 assert.match(navigation, /Sign out or switch account/);
 assert.match(navigation, /Not connected to live systems/);
 console.log(
@@ -397,4 +402,250 @@ for (const palette of [lightPalette, darkPalette]) {
 }
 console.log(
   "Light and dark palette checks passed: primary, secondary and muted text contrast.",
+);
+
+// Actual-state regression matrix: no timer advances a workflow.
+const flow = loadView("../lib/demo-workflow");
+const now = new Date().toISOString();
+const incident = {
+  id: "current-incident",
+  service_id: "a",
+  state: "ANALYZING",
+  detected_at: now,
+  events: [],
+  runbook_executions: [],
+};
+const liveData = {
+  services: [
+    {
+      id: "a",
+      slug: "demo-service",
+      status: "SUSPECTED",
+      consecutive_failures: 2,
+      consecutive_successes: 0,
+      last_checked_at: now,
+    },
+  ],
+  recent_events: [],
+  recent_observations: [],
+  demo_run: {
+    id: "current-run",
+    scenario_id: "crash",
+    service_id: "a",
+    injected_at: now,
+    incident_id: null,
+    baseline: { http_status: 200, latency_ms: 12, observed_at: now },
+    runtime_before: { child_pid: 555, restart_count: 0 },
+    failure_threshold: 4,
+    verification_threshold: 2,
+    check_interval_seconds: 5,
+  },
+};
+assert.equal(flow.demoPhase(null).key, "loading");
+assert.equal(flow.demoPhase({ services: [] }).pending, false);
+assert.equal(flow.demoPhase(liveData).key, "detection");
+assert.equal(
+  flow.demoPhase({
+    ...liveData,
+    demo_run: { ...liveData.demo_run, incident_id: incident.id },
+  }).key,
+  "loading-incident",
+);
+for (const [state, events, key, pending] of [
+  ["OPEN", [], "opened", true],
+  ["ANALYZING", [], "analysis", true],
+  [
+    "ANALYZING",
+    [{ event_type: "ANALYSIS_COMPLETED", at: now }],
+    "policy",
+    true,
+  ],
+  ["RECOVERING", [], "recovering", true],
+  ["VERIFYING", [], "verifying", true],
+  ["AWAITING_APPROVAL", [], "review", false],
+  ["ESCALATED", [], "review", false],
+  ["CLOSED", [], "closed", false],
+  ["RESOLVED", [], "incomplete", false],
+]) {
+  const phase = flow.demoPhase(liveData, { ...incident, state, events });
+  assert.equal(phase.key, key, state);
+  assert.equal(phase.pending, pending, state);
+}
+const resolved = { ...incident, state: "RESOLVED", resolved_at: now };
+assert.equal(flow.demoPhase(liveData, resolved).key, "verified");
+assert.equal(
+  flow.demoPhase(
+    { ...liveData, demo_run: { ...liveData.demo_run, reset_at: now } },
+    resolved,
+  ).key,
+  "reset",
+);
+const renderEvidence = (input, extra = {}) =>
+  renderToStaticMarkup(
+    React.createElement(evidence.default, { data: input, ...extra }),
+  );
+const withIncident = (record) => ({
+  ...liveData,
+  active_incident: record,
+  demo_run: { ...liveData.demo_run, incident_id: record.id },
+});
+const detection = renderEvidence(liveData);
+assert.match(detection, /Waiting for health checks/);
+assert.match(detection, /aria-valuenow="2"/);
+assert.match(detection, /aria-valuemax="4"/);
+assert.match(detection, /activity-ring/);
+assert.doesNotMatch(detection, /\d+%/);
+const analysis = {
+  ...incident,
+  latest_analysis: {
+    provider: "demo_fallback",
+    confidence: "medium",
+    summary: "Synthetic connection failure",
+    reasoning_summary: "Review recorded evidence",
+    evidence_event_ids: [],
+  },
+};
+const verifying = renderEvidence({
+  ...withIncident({
+    ...analysis,
+    state: "VERIFYING",
+    events: [
+      {
+        event_type: "VERIFICATION_PROBE_SUCCESS",
+        id: "verification-1",
+        at: now,
+        public_message: "One independent check passed",
+      },
+    ],
+  }),
+  services: [{ ...liveData.services[0], consecutive_successes: 1 }],
+});
+assert.match(verifying, /Verifying successful probes/);
+assert.match(verifying, /aria-valuenow="1"/);
+assert.match(verifying, /Rule-based demo fallback \/ not Gemini execution/);
+assert.match(verifying, /data-state="current"/);
+assert.doesNotMatch(verifying, /Recovery independently verified/);
+const interruptedVerification = renderEvidence(
+  withIncident({
+    ...analysis,
+    state: "VERIFYING",
+    events: [
+      {
+        id: "old-success",
+        event_type: "VERIFICATION_PROBE_SUCCESS",
+        at: now,
+        public_message: "An earlier check passed",
+      },
+    ],
+  }),
+);
+assert.match(interruptedVerification, /aria-valuenow="0"/);
+assert.doesNotMatch(interruptedVerification, /Recovery independently verified/);
+const reviewing = renderEvidence(
+  withIncident({ ...analysis, state: "AWAITING_APPROVAL" }),
+);
+assert.match(reviewing, /Human review required/);
+assert.match(reviewing, /Blocked for human review/);
+assert.doesNotMatch(reviewing, /activity-ring/);
+const resetEvidence = renderEvidence({
+  ...withIncident(resolved),
+  demo_run: { ...liveData.demo_run, incident_id: resolved.id, reset_at: now },
+});
+assert.match(resetEvidence, /Run ended by reset/);
+assert.match(resetEvidence, /Run reset/);
+assert.doesNotMatch(resetEvidence, /activity-ring/);
+assert.match(
+  renderEvidence(liveData, { operation: "inject" }),
+  /Injecting fault/,
+);
+assert.match(
+  renderEvidence(liveData, { operation: "reset" }),
+  /Resetting sandbox/,
+);
+const stale = renderEvidence(liveData, { dataStale: true });
+assert.match(stale, /Waiting for fresh evidence/);
+assert.doesNotMatch(stale, /activity-ring/);
+assert.match(stale, /Retry evidence/);
+assert.ok(
+  renderDemo(liveData).indexOf("Run demonstration") <
+    renderDemo(liveData).indexOf("Recorded incident workflow"),
+);
+const unavailable = renderToStaticMarkup(
+  React.createElement(demo.exports.default, {
+    data: liveData,
+    dataStale: true,
+    currentUser: { token: "test" },
+  }),
+);
+assert.match(unavailable, /Refresh service data before changing the sandbox/);
+assert.match(
+  unavailable,
+  /class="ui-button ui-button-primary shrink-0" disabled/,
+);
+const clipped = flow.runChecks({
+  ...liveData,
+  demo_run: {
+    ...liveData.demo_run,
+    injected_at: "2026-11-13T01:00:00Z",
+    reset_at: "2026-11-13T01:00:10Z",
+  },
+  recent_observations: [
+    { id: "before", service_id: "a", observed_at: "2026-11-13T00:59:59Z" },
+    { id: "within", service_id: "a", observed_at: "2026-11-13T09:00:05+08:00" },
+    { id: "after", service_id: "a", observed_at: "2026-11-13T01:00:11Z" },
+    { id: "other", service_id: "b", observed_at: "2026-11-13T01:00:05Z" },
+  ],
+});
+assert.deepEqual(
+  clipped.map((check) => check.id),
+  ["within"],
+);
+assert.equal(
+  flow.utcTime("2026-11-13T01:00:00"),
+  flow.utcTime("2026-11-13T09:00:00+08:00"),
+);
+assert.match(chartMarkup, /fail-hatch/);
+assert.match(chartMarkup, /hatched = fail/);
+for (const palette of [lightPalette, darkPalette]) {
+  for (const name of [
+    "page-bg",
+    "surface-bg",
+    "neutral-500",
+    "neutral-700",
+    "neutral-900",
+    "action-bg",
+    "action-fg",
+  ]) {
+    const rgb = rgbVariable(palette, name);
+    assert.ok(
+      rgb.every((channel) => channel === rgb[0]),
+      `${name} must be monochrome`,
+    );
+  }
+  const fg = luminance(rgbVariable(palette, "action-fg")),
+    bg = luminance(rgbVariable(palette, "action-bg"));
+  assert.ok((Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05) >= 7);
+}
+assert.match(themeCss, /prefers-reduced-motion/);
+assert.match(themeCss, /animation: none !important/);
+const sources = fs
+  .readdirSync(path.resolve(__dirname, "../src/components"))
+  .filter((name) => name.endsWith(".tsx"))
+  .map((name) =>
+    fs.readFileSync(path.resolve(__dirname, "../src/components", name), "utf8"),
+  )
+  .join("\n");
+assert.doesNotMatch(
+  sources,
+  /(?:bg|text|border)-(?:blue|rose|amber|emerald|purple|red|green|indigo|sky|teal|orange)-\d/,
+);
+assert.doesNotMatch(sources, /animate-pulse/);
+const pageSource = fs.readFileSync(
+  path.resolve(__dirname, "../src/app/page.tsx"),
+  "utf8",
+);
+assert.match(pageSource, /request !== dashboardRequest.current/);
+assert.match(pageSource, /key=\{currentTab\}/);
+console.log(
+  "Live demo checks passed: actual phases, counters, terminal states, provider provenance, stale evidence, run isolation, monochrome charts and reduced motion.",
 );

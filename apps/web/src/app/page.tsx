@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import ActivityIndicator from "../components/ActivityIndicator";
 import Navbar from "../components/Navbar";
 import OverviewView from "../components/OverviewView";
 import IncidentsView from "../components/IncidentsView";
@@ -16,6 +17,12 @@ export default function Home() {
     null,
   );
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [incidentsError, setIncidentsError] = useState<string | null>(null);
+  const [incidentsLoaded, setIncidentsLoaded] = useState(false);
+  const dashboardRequest = useRef(0);
+  const incidentRequest = useRef(0);
+  const currentTabRef = useRef(currentTab);
+  currentTabRef.current = currentTab;
   const [sseConnected, setSseConnected] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -37,6 +44,7 @@ export default function Home() {
   const loginUser = useCallback(async (username: string, password: string) => {
     const res = await fetch("/api/v1/auth/login", {
       method: "POST",
+      signal: AbortSignal.timeout(20000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
@@ -54,35 +62,45 @@ export default function Home() {
 
   // Fetch Dashboard Telemetry
   const fetchDashboard = useCallback(async () => {
-    setRefreshing(true);
+    const request = ++dashboardRequest.current;
     try {
       const res = await fetch("/api/v1/dashboard", {
         signal: AbortSignal.timeout(10000),
       });
       if (!res.ok) throw new Error(`Dashboard returned HTTP ${res.status}`);
       const data: DashboardData = await res.json();
+      if (request !== dashboardRequest.current) return;
       setDashboardData(data);
       setLastUpdated(new Date().toISOString());
       setDashboardError(null);
     } catch (e) {
+      if (request !== dashboardRequest.current) return;
       setDashboardError(
         "Unable to refresh service data. Check that the API is running and try again.",
       );
-    } finally {
-      setRefreshing(false);
     }
   }, []);
 
   // Fetch Incidents List
   const fetchIncidents = useCallback(async () => {
+    const request = ++incidentRequest.current;
     try {
-      const res = await fetch("/api/v1/incidents");
+      const res = await fetch("/api/v1/incidents", {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) throw new Error("Incident history unavailable");
       if (res.ok) {
         const data: Incident[] = await res.json();
+        if (request !== incidentRequest.current) return;
         setIncidents(data);
+        setIncidentsError(null);
+        setIncidentsLoaded(true);
       }
     } catch (e) {
-      console.error("Incidents fetch error:", e);
+      if (request === incidentRequest.current)
+        setIncidentsError(
+          "Incident history could not be refreshed. Existing records may be stale.",
+        );
     }
   }, []);
 
@@ -128,6 +146,7 @@ export default function Home() {
         };
       } catch (err) {
         setSseConnected(false);
+        retryTimer = setTimeout(connectSSE, 5000);
       }
     };
 
@@ -136,7 +155,7 @@ export default function Home() {
     // Fallback polling every 5 seconds to ensure UI is never stale
     fallbackTimer = setInterval(() => {
       fetchDashboard();
-      if (currentTab === "incidents") {
+      if (currentTabRef.current === "incidents") {
         fetchIncidents();
       }
     }, 5000);
@@ -147,7 +166,7 @@ export default function Home() {
       if (fallbackTimer) clearInterval(fallbackTimer);
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [fetchDashboard, fetchIncidents, currentTab]);
+  }, [fetchDashboard, fetchIncidents]);
 
   // Changing accounts requires signing in again.
   const handleSwitchUser = async () => {
@@ -168,6 +187,7 @@ export default function Home() {
   const handleTriggerFailure = async (type: DemoScenarioId) => {
     const res = await fetch("/api/v1/demo/failures", {
       method: "POST",
+      signal: AbortSignal.timeout(20000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${currentUser.token}`,
@@ -184,6 +204,7 @@ export default function Home() {
   const handleResetDemo = async () => {
     const res = await fetch("/api/v1/demo/reset", {
       method: "POST",
+      signal: AbortSignal.timeout(20000),
       headers: {
         Authorization: `Bearer ${currentUser.token}`,
       },
@@ -202,6 +223,7 @@ export default function Home() {
   ) => {
     const res = await fetch(`/api/v1/incidents/${incidentId}/approve-runbook`, {
       method: "POST",
+      signal: AbortSignal.timeout(20000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${currentUser.token}`,
@@ -222,6 +244,7 @@ export default function Home() {
   const handleRejectRunbook = async (incidentId: string, runbookId: string) => {
     const res = await fetch(`/api/v1/incidents/${incidentId}/reject-runbook`, {
       method: "POST",
+      signal: AbortSignal.timeout(20000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${currentUser.token}`,
@@ -251,10 +274,11 @@ export default function Home() {
 
       <main
         id="main-content"
-        className="flex-1 max-w-[1120px] w-full mx-auto px-5 sm:px-8 py-5 lg:py-6"
+        tabIndex={-1}
+        className="flex-1 max-w-[1240px] w-full mx-auto px-4 sm:px-8 py-6 lg:py-9"
       >
         {sessionError && (
-          <p role="alert" className="mb-4 text-sm text-rose-700">
+          <p role="alert" className="mb-4 text-sm text-stone-700">
             {sessionError}
           </p>
         )}
@@ -264,6 +288,7 @@ export default function Home() {
             onStartDemo={async () => {
               const response = await fetch("/api/v1/auth/demo", {
                 method: "POST",
+                signal: AbortSignal.timeout(20000),
               });
               const result = await response.json();
               if (!response.ok)
@@ -278,7 +303,7 @@ export default function Home() {
             }}
           />
         )}
-        <div className="mb-7 flex flex-wrap items-center justify-between gap-3 pb-2 text-xs text-slate-500">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
           <p role="status">
             {dashboardError
               ? "Updates unavailable  /  Displayed data may be out of date"
@@ -288,55 +313,79 @@ export default function Home() {
           </p>
           <button
             disabled={refreshing}
-            onClick={fetchDashboard}
+            onClick={async () => {
+              setRefreshing(true);
+              try {
+                await Promise.all([fetchDashboard(), fetchIncidents()]);
+              } finally {
+                setRefreshing(false);
+              }
+            }}
             className="min-h-11 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {refreshing ? "Refreshing..." : "Refresh data"}
+            {refreshing ? (
+              <span className="inline-flex items-center gap-2">
+                <ActivityIndicator className="!h-3 !w-3" />
+                Refreshing...
+              </span>
+            ) : (
+              "Refresh data"
+            )}
           </button>
         </div>
         {dashboardError && (
           <div
             role="alert"
-            className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800"
+            className="mb-5 rounded-xl border border-stone-300/30 bg-stone-100/10 p-4 text-sm text-stone-900"
           >
             {dashboardError} Automatic retries continue every 5 seconds.
           </div>
         )}
-        {currentTab === "overview" && (
-          <OverviewView
-            data={dashboardData}
-            loadError={dashboardError}
-            currentUser={currentUser}
-            onRefresh={fetchDashboard}
-            onApproveRunbook={handleApproveRunbook}
-            onRejectRunbook={handleRejectRunbook}
-            onTriggerFailure={handleTriggerFailure}
-            onResetDemo={handleResetDemo}
-            onNavigate={setCurrentTab}
-          />
-        )}
+        <div key={currentTab} className="view-enter">
+          {currentTab === "overview" && (
+            <OverviewView
+              data={dashboardData}
+              loadError={dashboardError}
+              currentUser={currentUser}
+              onRefresh={fetchDashboard}
+              onApproveRunbook={handleApproveRunbook}
+              onRejectRunbook={handleRejectRunbook}
+              onTriggerFailure={handleTriggerFailure}
+              onResetDemo={handleResetDemo}
+              onNavigate={setCurrentTab}
+            />
+          )}
 
-        {currentTab === "incidents" && <IncidentsView incidents={incidents} />}
+          {currentTab === "incidents" && (
+            <IncidentsView
+              incidents={incidents}
+              error={incidentsError}
+              loading={!incidentsLoaded && !incidentsError}
+              onRetry={fetchIncidents}
+            />
+          )}
 
-        {currentTab === "audit" && (
-          <AuditView events={dashboardData?.recent_events || []} />
-        )}
+          {currentTab === "audit" && (
+            <AuditView events={dashboardData?.recent_events || []} />
+          )}
 
-        {currentTab === "demo" && (
-          <DemoControlsView
-            data={dashboardData}
-            currentUser={currentUser}
-            onTriggerFailure={handleTriggerFailure}
-            onResetDemo={handleResetDemo}
-          />
-        )}
+          {currentTab === "demo" && (
+            <DemoControlsView
+              dataStale={!!dashboardError}
+              data={dashboardData}
+              currentUser={currentUser}
+              onTriggerFailure={handleTriggerFailure}
+              onResetDemo={handleResetDemo}
+            />
+          )}
 
-        {currentTab === "settings" && (
-          <SettingsView
-            currentUser={currentUser}
-            metrics={dashboardData?.metrics}
-          />
-        )}
+          {currentTab === "settings" && (
+            <SettingsView
+              currentUser={currentUser}
+              metrics={dashboardData?.metrics}
+            />
+          )}
+        </div>
       </main>
 
       {/* Minimal Footer */}
