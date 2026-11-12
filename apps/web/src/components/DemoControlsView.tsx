@@ -1,37 +1,27 @@
 ﻿"use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, RotateCcw, ShieldCheck, Radio } from "lucide-react";
-import { DashboardData, DemoScenarioId } from "../types";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, Check, RotateCcw, ShieldCheck } from "lucide-react";
+import { DashboardData, DemoScenarioId, Incident } from "../types";
 import DemoEvidence from "./DemoEvidence";
+import StudentServicePanel from "./StudentServicePanel";
 import ActivityIndicator from "./ActivityIndicator";
-import { formatClock, utcTime } from "../lib/demo-workflow";
+import { measuredRecovery } from "./IncidentSummary";
+import { utcTime } from "../lib/demo-workflow";
+import {
+  isStudioScenario,
+  StudentReceipt,
+  StudioScenarioId,
+  studioScenarios,
+} from "../lib/demo-studio";
 
+type Action = "inject" | "reset" | "replay";
 interface Scenario {
   id: DemoScenarioId;
   title: string;
-  workflow: string;
-  impact: string;
   fault: string;
   outcome: string;
-  transformation: string;
-  runbook_id: string | null;
-  owner?: string;
-  signals?: { component: string; state: string }[];
 }
-interface Receipt {
-  http_status: number | null;
-  latency_ms: number;
-  checked_at: string;
-  response: {
-    message?: string;
-    error_type?: string;
-    owner?: string;
-    signals?: { component: string; state: string }[];
-    attendance?: { pending: number; processed: number };
-  };
-}
-
 export default function DemoControlsView({
   data,
   currentUser,
@@ -45,25 +35,26 @@ export default function DemoControlsView({
   onResetDemo: () => Promise<void>;
   dataStale?: boolean;
 }) {
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [catalogError, setCatalogError] = useState(false);
+  const [catalog, setCatalog] = useState<Scenario[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [selectedId, setSelectedId] = useState<DemoScenarioId>("crash");
-  const [confirmation, setConfirmation] = useState<"inject" | "reset" | null>(
-    null,
-  );
+  const [selected, setSelected] = useState<StudioScenarioId>("crash");
+  const [choosing, setChoosing] = useState(false);
+  const [confirmation, setConfirmation] = useState<Action | null>(null);
   const [operation, setOperation] = useState<"inject" | "reset" | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-  const [failedAction, setFailedAction] = useState<"inject" | "reset">(
-    "inject",
-  );
+  const [failedAction, setFailedAction] = useState<Action>("inject");
   const [requestBusy, setRequestBusy] = useState(false);
-  const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [receiptRun, setReceiptRun] = useState<string | undefined>();
+  const [receipts, setReceipts] = useState<StudentReceipt[]>([]);
+  const [observedIncident, setObservedIncident] = useState<Incident | null>(
+    null,
+  );
+  const afterCaptured = useRef<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  const run = data?.demo_run;
   useEffect(() => {
     const controller = new AbortController();
     setCatalogLoading(true);
@@ -73,8 +64,8 @@ export default function DemoControlsView({
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("Scenario catalog unavailable");
-        const catalog: Scenario[] = await response.json();
-        if (!controller.signal.aborted) setScenarios(catalog);
+        const items: Scenario[] = await response.json();
+        if (!controller.signal.aborted) setCatalog(items);
       })
       .catch(() => {
         if (!controller.signal.aborted) setCatalogError(true);
@@ -84,196 +75,210 @@ export default function DemoControlsView({
       });
     return () => controller.abort();
   }, [retry]);
+  useEffect(() => {
+    if (isStudioScenario(run?.scenario_id)) setSelected(run.scenario_id);
+  }, [run?.id, run?.scenario_id]);
   const active = data?.active_incident;
-  const runInProgress =
-    !!data?.demo_run &&
-    !data.demo_run.reset_at &&
-    (!data.demo_run.incident_id || !!active);
+  const inProgress = !!run && !run.reset_at && (!run.incident_id || !!active);
+  const hasRun = !!run && !run.reset_at;
+  const currentScenario =
+    hasRun && isStudioScenario(run?.scenario_id) ? run.scenario_id : selected;
+  const unsupported = hasRun && !isStudioScenario(run?.scenario_id);
   const service =
     data?.services.find((item) => item.slug === "demo-service") ||
     data?.services[0];
-  const selected =
-    scenarios.find((item) => item.id === selectedId) || scenarios[0];
-  const serviceStale =
+  const monitorStale =
     !!data &&
     (!service?.last_checked_at ||
       Date.now() - utcTime(service.last_checked_at) >
-        Math.max(15000, (data.demo_run?.check_interval_seconds || 5) * 3000));
-  const disabledReason = dataStale
+        Math.max(15000, (run?.check_interval_seconds || 5) * 3000));
+  const unavailable = dataStale
     ? "Updates are unavailable. Refresh service data before changing the sandbox."
     : !data
       ? "Waiting for service data."
       : !currentUser.token
         ? "Start a demo session or sign in above to enable controls."
-        : active || runInProgress
-          ? "A run is already active. Follow its recorded progress below, or reset to start again."
-          : service?.status !== "HEALTHY"
-            ? "Waiting for the monitor to detect the fault or confirm a healthy baseline."
-            : serviceStale
-              ? "The monitor has not reported recently. Wait for a fresh check before starting a run."
-              : catalogLoading
-                ? "Loading failure scenarios..."
-                : !selected
-                  ? "Choose an available scenario."
-                  : null;
-  const ready = !disabledReason && !operation;
-  const confirm = (action: "inject" | "reset") => {
+        : null;
+  const reason =
+    unavailable ||
+    (active || inProgress
+      ? "A run is active. Watch the live evidence below; reset to start again."
+      : service?.status !== "HEALTHY"
+        ? "Waiting for the monitor to detect the fault or confirm a healthy baseline."
+        : monitorStale
+          ? "The monitor has not reported recently. Wait for a fresh health check."
+          : catalogLoading
+            ? "Loading failure scenarios..."
+            : catalogError
+              ? "The scenario catalog could not be loaded."
+              : !catalog.some((item) => item.id === selected)
+                ? "This scenario is not available."
+                : null);
+  const info = studioScenarios[selected];
+  const selectedCatalog = catalog.find((item) => item.id === selected);
+  const ready = !reason && !operation;
+  const confirm = (action: Action) => {
     setConfirmation(action);
     dialog.current?.showModal();
   };
+  const observe = useCallback(
+    (incident: Incident | null) => setObservedIncident(incident),
+    [],
+  );
+  const capture = useCallback(
+    async (
+      stage: StudentReceipt["stage"],
+      scenario: StudioScenarioId = selected,
+    ) => {
+      setRequestBusy(true);
+      setRequestError(null);
+      try {
+        const response = await fetch("/api/v1/demo/workflow-check", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${currentUser.token}` },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!response.ok)
+          throw new Error(
+            "Rebound could not reach the request API. Reconnect and retry.",
+          );
+        const result: StudentReceipt = {
+          ...(await response.json()),
+          stage,
+          scenario_id: scenario,
+        };
+        setReceipts((previous) => [...previous, result].slice(-8));
+        return result;
+      } catch (error) {
+        setRequestError(
+          error instanceof Error
+            ? error.message
+            : "The request could not be observed.",
+        );
+        throw error;
+      } finally {
+        setRequestBusy(false);
+      }
+    },
+    [currentUser.token, selected],
+  );
+  useEffect(() => {
+    if (
+      observedIncident?.state === "RESOLVED" &&
+      run?.incident_id === observedIncident.id &&
+      !run.reset_at &&
+      currentUser.token &&
+      afterCaptured.current !== run.id
+    ) {
+      afterCaptured.current = run.id;
+      void capture(
+        "after",
+        isStudioScenario(run.scenario_id) ? run.scenario_id : selected,
+      ).catch(() => {});
+    }
+  }, [
+    observedIncident?.id,
+    observedIncident?.state,
+    run?.id,
+    run?.incident_id,
+    run?.reset_at,
+    currentUser.token,
+    capture,
+  ]);
   async function execute() {
     if (
       !confirmation ||
       operation ||
-      (confirmation === "inject" && (!ready || !selected))
+      unavailable ||
+      (confirmation === "inject" && !ready)
     )
       return;
     const action = confirmation;
-    setOperation(action);
-    setFeedback(null);
     setFailed(false);
+    setFeedback(null);
+    setFailedAction(action);
     try {
-      if (action === "inject") await onTriggerFailure(selected!.id);
-      else await onResetDemo();
-      setReceipt(null);
+      if (action === "reset" || action === "replay") {
+        setOperation("reset");
+        await onResetDemo();
+        setReceipts([]);
+        setRequestError(null);
+        setObservedIncident(null);
+        afterCaptured.current = null;
+        if (action === "reset") {
+          setChoosing(true);
+          setFeedback(
+            "Sandbox reset. Prior evidence was retained; reset is not verified recovery.",
+          );
+          dialog.current?.close();
+          return;
+        }
+      }
+      setOperation("inject");
+      setReceipts([]);
+      afterCaptured.current = null;
+      await capture("before");
+      await onTriggerFailure(selected);
+      setChoosing(false);
       setFeedback(
-        action === "inject"
-          ? "Fault injection recorded. Follow the independent monitor evidence below."
-          : "Sandbox reset. Open incidents were closed administratively; wait for a healthy baseline.",
+        "Fault injection accepted. The student request and independent monitor now observe the same isolated workload.",
       );
       dialog.current?.close();
+      await capture("during").catch(() => {});
     } catch (error) {
       setFailed(true);
-      setFailedAction(action);
       setFeedback(
-        error instanceof Error ? error.message : "Action failed. Try again.",
+        error instanceof Error
+          ? error.message
+          : "Action could not be confirmed. Refresh the evidence before retrying.",
       );
       dialog.current?.close();
     } finally {
       setOperation(null);
     }
   }
-  async function testWorkflow() {
-    setRequestBusy(true);
-    setRequestError(null);
-    try {
-      const response = await fetch("/api/v1/demo/workflow-check", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${currentUser.token}` },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!response.ok)
-        throw new Error(
-          "Could not run the synthetic request. Check your session and API connection, then retry.",
-        );
-      setReceipt(await response.json());
-      setReceiptRun(data?.demo_run?.id);
-    } catch (error) {
-      setRequestError(
-        error instanceof Error ? error.message : "Request failed",
-      );
-    } finally {
-      setRequestBusy(false);
-    }
-  }
-  const renderCard = (scenario: Scenario) => (
-    <button
-      key={scenario.id}
-      className="scenario-card"
-      aria-pressed={selected?.id === scenario.id}
-      aria-label={`Select ${scenario.title}`}
-      disabled={!!operation}
-      onClick={() => setSelectedId(scenario.id)}
-    >
-      <span className="flex w-full items-center justify-between gap-2 text-[11px] text-stone-500">
-        <span>
-          {scenario.id === "crash"
-            ? "01 / Recommended start"
-            : scenario.runbook_id
-              ? "Automatic recovery"
-              : "Human investigation"}
-        </span>
-        {selected?.id === scenario.id && (
-          <Check aria-label="Selected" className="h-4 w-4 text-stone-900" />
-        )}
-      </span>
-      <span className="text-sm font-semibold leading-snug text-stone-900">
-        {scenario.title}
-      </span>
-      <span className="mt-auto text-xs text-stone-500">
-        {scenario.workflow}
-      </span>
-    </button>
-  );
+  const terminal =
+    hasRun &&
+    observedIncident &&
+    ["RESOLVED", "AWAITING_APPROVAL", "ESCALATED", "CLOSED"].includes(
+      observedIncident.state,
+    );
   return (
-    <div className="space-y-7">
+    <div className="demo-studio space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="ui-eyebrow">Interactive sandbox / synthetic</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl">
-            Failure, understood.
+          <p className="ui-eyebrow">A guided, real-request demonstration</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Demo Studio
           </h1>
-          <p className="mt-3 hidden max-w-2xl text-sm text-stone-500 sm:block">
-            Select a school workflow. Introduce a controlled failure. Follow the
-            evidence through to an independently verified recovery or a human
-            review.
+          <p className="mt-3 max-w-3xl text-sm text-stone-600">
+            When a school service fails, can automation help without making it
+            worse? Try the student service, introduce a fault, and follow
+            Rebound's measured response.
           </p>
         </div>
-        <span className="state-tag hidden sm:inline-flex">
-          <Radio aria-hidden="true" className="h-3 w-3" />
-          Synthetic services only
+        <span className="state-tag">
+          Synthetic workload / no real school connection
         </span>
       </header>
-      <section
-        aria-label="Select and start a scenario"
-        className="ui-panel overflow-hidden"
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-stone-200 p-4 sm:items-center sm:p-6">
-          <div className="min-w-0 flex-1">
-            <p className="ui-eyebrow">01 / Select scenario</p>
-            <h2 className="mt-2 text-sm font-semibold text-stone-900 sm:text-lg">
-              {selected?.title || "Choose your first demonstration"}
-            </h2>
-            <p className="mt-1 hidden max-w-xl text-sm text-stone-500 sm:block">
-              {selected?.runbook_id
-                ? "One bounded recovery action, followed by independent verification."
-                : selected
-                  ? "Evidence-backed investigation. No automatic recovery for this fault."
-                  : "The learning portal is the recommended starting point."}
-            </p>
-          </div>
-          <button
-            className="ui-button ui-button-primary shrink-0"
-            disabled={!ready}
-            onClick={() => confirm("inject")}
-          >
-            {operation === "inject" ? (
-              <>
-                <ActivityIndicator className="!h-4 !w-4" />
-                Injecting fault
-              </>
-            ) : (
-              <>
-                <span className="sm:hidden">Run demo</span>
-                <span className="hidden sm:inline">Run demonstration</span>
-                <ArrowRight aria-hidden="true" className="h-4 w-4" />
-              </>
-            )}
-          </button>
-        </div>
-        {disabledReason && (
-          <p
-            role="status"
-            className="border-b border-stone-200 px-5 py-3 text-xs text-stone-600 sm:px-6"
-          >
-            {disabledReason}
-          </p>
-        )}
-        <div className="p-5 sm:p-6">
+      {(!hasRun || choosing) && (
+        <details
+          open={choosing}
+          className="ui-panel p-4 sm:p-5"
+          aria-label="Curated demonstrations"
+        >
+          <summary className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm font-medium">
+              Choose a different story / three curated scenarios
+            </span>
+            <span className="text-xs text-stone-500">
+              Start with the learning portal
+            </span>
+          </summary>
           {catalogError ? (
             <div
               role="alert"
-              className="ui-notice flex flex-wrap items-center justify-between gap-3"
+              className="ui-notice flex items-center justify-between gap-3"
             >
               Could not load scenarios.
               <button
@@ -290,210 +295,194 @@ export default function DemoControlsView({
               className="grid gap-3 sm:grid-cols-3"
             >
               {[1, 2, 3].map((n) => (
-                <div key={n} className="skeleton h-28" />
+                <div key={n} className="skeleton h-24" />
               ))}
             </div>
           ) : (
-            <>
-              <div
-                className="grid gap-3 sm:grid-cols-3"
-                aria-label="Recommended scenarios"
-              >
-                {["crash", "attendance_backlog", "degraded"]
-                  .map((id) => scenarios.find((item) => item.id === id))
-                  .filter((item): item is Scenario => !!item)
-                  .map(renderCard)}
-              </div>
-              <details className="mt-4">
-                <summary className="text-sm text-stone-600">
-                  Explore all {scenarios.length} scenarios, including network
-                  and AV faults
-                </summary>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {scenarios
-                    .filter(
-                      (item) =>
-                        !["crash", "attendance_backlog", "degraded"].includes(
-                          item.id,
-                        ),
-                    )
-                    .map(renderCard)}
-                </div>
-              </details>
-            </>
-          )}
-          {selected && (
-            <details className="mt-3 border-t border-stone-200 pt-2">
-              <summary className="text-sm text-stone-600">
-                Impact, expected result and sandbox boundaries
-              </summary>
-              <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
-                {[
-                  ["Potential school impact", selected.impact],
-                  ["Fault actually injected", selected.fault],
-                  ["Expected result", selected.outcome],
-                  ["Workflow improvement", selected.transformation],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="font-medium text-stone-900">{label}</dt>
-                    <dd className="mt-1 leading-relaxed text-stone-600">
-                      {value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              {selected.signals && (
-                <div className="mt-5">
-                  <p className="ui-eyebrow">
-                    Modelled fault signals / not real equipment telemetry
-                  </p>
-                  <ol className="mt-3 flex flex-wrap gap-4">
-                    {selected.signals.map((signal) => (
-                      <li
-                        key={signal.component}
-                        className="border-l border-stone-300 pl-3 text-sm"
-                      >
-                        <p className="text-stone-500">{signal.component}</p>
-                        <p className="text-stone-800">{signal.state}</p>
-                      </li>
-                    ))}
-                  </ol>
-                  <p className="mt-3 text-xs text-stone-500">
-                    Suggested team: {selected.owner}. No ticket or message is
-                    sent.
-                  </p>
-                </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {(Object.keys(studioScenarios) as StudioScenarioId[]).map(
+                (id) => (
+                  <button
+                    key={id}
+                    className="scenario-card"
+                    aria-pressed={selected === id}
+                    disabled={!!operation || !!inProgress}
+                    onClick={() => setSelected(id)}
+                  >
+                    <span className="flex w-full items-center justify-between text-xs text-stone-500">
+                      {id === "crash"
+                        ? "01 / Recommended"
+                        : id === "degraded"
+                          ? "02 / Human judgement"
+                          : "03 / Workflow recovery"}
+                      {selected === id && (
+                        <Check className="h-4 w-4" aria-label="Selected" />
+                      )}
+                    </span>
+                    <span className="text-sm font-semibold">
+                      {studioScenarios[id].title}
+                    </span>
+                    <span className="text-xs text-stone-500">
+                      {studioScenarios[id].lesson}
+                    </span>
+                  </button>
+                ),
               )}
-            </details>
+            </div>
+          )}
+        </details>
+      )}
+      <section
+        className="studio-control flex flex-col justify-between gap-4 rounded-xl border border-stone-300 bg-white p-4 sm:flex-row sm:items-center sm:p-5"
+        aria-label="Demonstration controls"
+      >
+        <div className="min-w-0">
+          <p className="ui-eyebrow">
+            {hasRun ? "Current demonstration" : "Ready to introduce a failure?"}
+          </p>
+          <h2 className="mt-1 text-base font-semibold">
+            {unsupported ? "Existing sandbox run" : info.title}
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-stone-500">
+            {reason ||
+              (terminal && observedIncident
+                ? observedIncident.state === "RESOLVED"
+                  ? `Verified recovery: ${measuredRecovery(observedIncident)} from incident detection.`
+                  : "Automatic recovery stopped for human review. No verified recovery is claimed."
+                : `Expected: ${info.result}`)}
+          </p>
+          {terminal && (
+            <a
+              href="#studio-outcome"
+              className="mt-2 inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4"
+            >
+              View result and print summary
+            </a>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {!hasRun ? (
+            <button
+              className="ui-button ui-button-primary"
+              disabled={!ready}
+              onClick={() => confirm("inject")}
+            >
+              {operation ? (
+                <>
+                  <ActivityIndicator className="!h-4 !w-4" />
+                  Working...
+                </>
+              ) : (
+                <>
+                  Run demonstration
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </>
+              )}
+            </button>
+          ) : (
+            <>
+              <button
+                className="ui-button"
+                disabled={!!operation || !!unavailable}
+                onClick={() => confirm("reset")}
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Reset sandbox
+              </button>
+              {terminal && (
+                <button
+                  className="ui-button ui-button-primary"
+                  disabled={!!operation || !!unavailable || unsupported}
+                  onClick={() => confirm("replay")}
+                >
+                  {choosing ? "Run selected demo" : "Replay this demo"}
+                </button>
+              )}
+              <button
+                className="ui-button"
+                disabled={!!operation || !!inProgress}
+                onClick={() => setChoosing((value) => !value)}
+              >
+                {choosing ? "Hide choices" : "Choose another demo"}
+              </button>
+            </>
           )}
         </div>
       </section>
       {feedback && (
-        <div
-          role={failed ? "alert" : "status"}
-          className="ui-notice flex flex-wrap items-center justify-between gap-3"
-        >
-          <p>
-            {failed ? "Action failed: " : ""}
-            {feedback}
-          </p>
+        <p role={failed ? "alert" : "status"} className="ui-notice">
+          {feedback}
           {failed && (
             <button
-              className="ui-button"
-              disabled={!!operation || dataStale}
+              className="ui-button ml-3"
+              disabled={!!operation || !!unavailable}
               onClick={() => confirm(failedAction)}
             >
               Review and retry
             </button>
           )}
-        </div>
-      )}
-      <DemoEvidence
-        scenarioTitle={
-          scenarios.find((item) => item.id === data?.demo_run?.scenario_id)
-            ?.title
-        }
-        data={data}
-        token={currentUser.token}
-        operation={operation}
-        dataStale={dataStale}
-      />
-      <section
-        aria-label="Try the affected service"
-        className="ui-panel p-5 sm:p-6"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="ui-eyebrow">Independent request</p>
-            <h2 className="mt-2 text-lg font-semibold text-stone-900">
-              Try the service yourself
-            </h2>
-            <p className="mt-2 max-w-xl text-sm text-stone-500">
-              Send a synthetic request before or after recovery. This does not
-              advance the monitor or change incident state.
-            </p>
-          </div>
-          <button
-            className="ui-button"
-            disabled={!currentUser.token || requestBusy || dataStale}
-            onClick={testWorkflow}
-          >
-            {requestBusy ? (
-              <>
-                <ActivityIndicator className="!h-4 !w-4" />
-                Sending request
-              </>
-            ) : requestError ? (
-              "Retry test request"
-            ) : (
-              "Send test request"
-            )}
-          </button>
-        </div>
-        {requestError && (
-          <p role="alert" className="ui-notice mt-4">
-            {requestError}
-          </p>
-        )}
-        {receipt && (
-          <div className="mt-5 border-t border-stone-200 pt-4 text-sm">
-            <p className="font-mono text-xs text-stone-600">
-              {receipt.http_status
-                ? `HTTP ${receipt.http_status}`
-                : "No response"}{" "}
-              / {receipt.latency_ms} ms / {formatClock(receipt.checked_at)}
-            </p>
-            {receiptRun !== data?.demo_run?.id && (
-              <p className="mt-2 text-xs text-stone-500">
-                This receipt belongs to a previous run.
-              </p>
-            )}
-            <p className="mt-2 text-stone-800">
-              {receipt.response.error_type || receipt.response.message}
-            </p>
-            {receipt.response.signals?.length ? (
-              <ol
-                className="mt-4 flex flex-wrap gap-5"
-                aria-label="Synthetic request signal path"
-              >
-                {receipt.response.signals.map((signal) => (
-                  <li key={signal.component}>
-                    <p className="text-xs text-stone-500">{signal.component}</p>
-                    <p className="text-stone-800">{signal.state}</p>
-                  </li>
-                ))}
-              </ol>
-            ) : null}
-            {receipt.response.attendance && (
-              <p className="mt-2 text-stone-600">
-                {receipt.response.attendance.pending} attendance records pending
-                / {receipt.response.attendance.processed} processed
-              </p>
-            )}
-            {receipt.response.owner && (
-              <p className="mt-3 text-xs text-stone-500">
-                Suggested handoff: {receipt.response.owner}. No notification
-                sent.
-              </p>
-            )}
-          </div>
-        )}
-      </section>
-      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-stone-200 pt-5">
-        <p className="flex max-w-xl items-center gap-2 text-xs text-stone-500">
-          <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
-          One isolated workload; no school systems or student records are
-          connected. A reset closes incidents without claiming recovery.
         </p>
-        <button
-          className="ui-button"
-          disabled={!!operation || !currentUser.token || !data || dataStale}
-          onClick={() => confirm("reset")}
-        >
-          <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          {operation === "reset" ? "Resetting sandbox..." : "Reset sandbox"}
-        </button>
-      </footer>
+      )}
+      {hasRun && (
+        <p className="text-xs text-stone-500">
+          Next:{" "}
+          {unsupported
+            ? "Reset this existing run to start a curated story."
+            : terminal
+              ? "Compare the result, print the incident summary, then replay or try another story."
+              : "Watch the student request on the left and the independent monitoring evidence on the right."}
+        </p>
+      )}
+      <div className="studio-workspace grid items-start gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.25fr)]">
+        <div className="min-w-0 lg:sticky lg:top-24">
+          <StudentServicePanel
+            scenario={currentScenario}
+            receipts={receipts}
+            busy={requestBusy}
+            error={requestError}
+            disabled={!!unavailable || !!operation || !!unsupported}
+            onRequest={() => {
+              void capture(
+                terminal ? "after" : hasRun ? "during" : "before",
+                currentScenario,
+              ).catch(() => {});
+            }}
+          />
+        </div>
+        <div className="min-w-0">
+          <DemoEvidence
+            data={data}
+            token={currentUser.token}
+            operation={operation}
+            dataStale={dataStale}
+            scenarioTitle={
+              run && !isStudioScenario(run.scenario_id)
+                ? catalog.find((item) => item.id === run.scenario_id)?.title ||
+                  run.scenario_id.replaceAll("_", " ")
+                : studioScenarios[currentScenario].title
+            }
+            compact
+            onIncidentChange={observe}
+            studentReceipts={receipts}
+          />
+        </div>
+      </div>
+      <details className="border-t border-stone-200 pt-2">
+        <summary className="text-sm text-stone-600">
+          What this prototype demonstrates
+        </summary>
+        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-600">
+          {info.lesson} {selectedCatalog?.outcome} Student requests are separate
+          from health probes. Only the predefined demo process and its synthetic
+          queue can be changed. All timelines and recovery times come from
+          recorded evidence; reset is administrative closure.
+        </p>
+        <p className="mt-3 flex items-center gap-2 text-xs text-stone-500">
+          <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+          No real school infrastructure, student records, email delivery or
+          production ticketing is connected.
+        </p>
+      </details>
       <dialog
         ref={dialog}
         onClose={() => setConfirmation(null)}
@@ -507,26 +496,36 @@ export default function DemoControlsView({
           <p className="ui-eyebrow">
             {confirmation === "reset"
               ? "End this run"
-              : "02 / Confirm injection"}
+              : confirmation === "replay"
+                ? "Reset and replay"
+                : "Introduce a controlled fault"}
           </p>
           <h2 id="confirm-demo-title" className="mt-3 text-xl font-semibold">
-            {confirmation === "reset" ? "Reset the sandbox?" : selected?.title}
+            {confirmation === "reset" ? "Reset the sandbox?" : info.title}
           </h2>
           <p className="mt-3 text-sm text-stone-600">
             {confirmation === "reset"
-              ? "The sandbox returns to normal and open incidents are administratively closed. Their evidence is retained, but closure is not verified recovery."
-              : selected?.fault}
+              ? "Open incidents will be closed without claiming verified recovery. Prior incident evidence is retained."
+              : selectedCatalog?.fault}
           </p>
-          {confirmation === "inject" && (
+          {confirmation === "replay" && (
             <p className="mt-3 text-sm text-stone-600">
-              Only the synthetic workload is affected. A healthy baseline is
-              checked before injection.
+              The current run is reset first. New baseline and failure requests
+              will be captured for a separate run.
+            </p>
+          )}
+          {confirmation !== "reset" && (
+            <p className="mt-3 text-sm text-stone-600">
+              Only synthetic systems are affected. A healthy baseline is checked
+              before injection.
             </p>
           )}
           {operation && (
             <p role="status" className="mt-4 flex items-center gap-3 text-sm">
               <ActivityIndicator />
-              {operation === "inject" ? "Injecting fault" : "Resetting sandbox"}
+              {operation === "reset"
+                ? "Resetting sandbox"
+                : "Capturing requests and injecting fault"}
             </p>
           )}
         </div>
@@ -541,7 +540,9 @@ export default function DemoControlsView({
           <button
             className="ui-button ui-button-primary"
             disabled={
-              !!operation || dataStale || (confirmation === "inject" && !ready)
+              !!operation ||
+              !!unavailable ||
+              (confirmation === "inject" && !ready)
             }
             onClick={execute}
           >
@@ -549,7 +550,9 @@ export default function DemoControlsView({
               ? "Working..."
               : confirmation === "reset"
                 ? "Confirm reset"
-                : "Confirm scenario"}
+                : confirmation === "replay"
+                  ? "Confirm replay"
+                  : "Confirm scenario"}
           </button>
         </div>
       </dialog>

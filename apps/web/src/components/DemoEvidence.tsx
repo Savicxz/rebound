@@ -11,6 +11,12 @@ import {
 } from "lucide-react";
 import { DashboardData, Incident } from "../types";
 import ActivityIndicator from "./ActivityIndicator";
+import IncidentSummary, { providerName } from "./IncidentSummary";
+import {
+  StudentReceipt,
+  observedStages,
+  receiptInRun,
+} from "../lib/demo-studio";
 import {
   demoPhase,
   formatClock,
@@ -125,12 +131,18 @@ export default function DemoEvidence({
   operation = null,
   dataStale = false,
   scenarioTitle,
+  compact = false,
+  onIncidentChange,
+  studentReceipts = [],
 }: {
   data: DashboardData | null;
   token?: string;
   operation?: "inject" | "reset" | null;
   dataStale?: boolean;
   scenarioTitle?: string;
+  compact?: boolean;
+  onIncidentChange?: (incident: Incident | null) => void;
+  studentReceipts?: StudentReceipt[];
 }) {
   const [record, setRecord] = useState<Incident | null>(null);
   const [incidentError, setIncidentError] = useState<string | null>(null);
@@ -228,6 +240,14 @@ export default function DemoEvidence({
     setDownloadError(null);
   }, [latestId, run?.id]);
   const incident = active || (record?.id === latestId ? record : null);
+  useEffect(() => {
+    onIncidentChange?.(incident || null);
+  }, [
+    incident?.id,
+    incident?.state,
+    incident?.events.length,
+    onIncidentChange,
+  ]);
   const service =
     data?.services.find(
       (item) => item.id === (run?.service_id || incident?.service_id),
@@ -235,6 +255,7 @@ export default function DemoEvidence({
   const checks = runChecks(data, service?.id);
   const recent = checks.slice(-24);
   const latest = checks.at(-1);
+  const { failure, after } = observedStages(checks);
   const phase = demoPhase(data, incident);
   const monitorStale =
     !!data &&
@@ -293,6 +314,9 @@ export default function DemoEvidence({
         incident,
         demo_run: run,
         recent_probe_sample: checks,
+        independent_student_requests: studentReceipts.filter((receipt) =>
+          receiptInRun(receipt, run),
+        ),
         runtime_observation: token ? runtime : null,
         warnings: [
           dataStale && "Dashboard data may be stale",
@@ -329,7 +353,7 @@ export default function DemoEvidence({
       >
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="ui-eyebrow">Live run / recorded evidence</p>
+            <p className="ui-eyebrow">02 / Rebound observes and responds</p>
             {run && (
               <p className="mt-2 text-sm font-medium text-stone-700">
                 {scenarioTitle || run.scenario_id.replaceAll("_", " ")} /{" "}
@@ -433,7 +457,40 @@ export default function DemoEvidence({
             stale-evidence disclosures.
           </p>
         )}
-        {run && (
+        {compact && run && (
+          <dl
+            className="mt-5 grid grid-cols-3 gap-3 border-t border-stone-200 pt-4"
+            aria-label="Before failure and after measurements"
+          >
+            {[
+              ["Before", run.baseline],
+              ["Failure", failure],
+              ["After", after],
+            ].map(([name, value]) => {
+              const probe = value as
+                | {
+                    http_status?: number | null;
+                    latency_ms: number;
+                    observed_at?: string;
+                  }
+                | undefined;
+              return (
+                <div key={String(name)}>
+                  <dt className="ui-eyebrow">{String(name)}</dt>
+                  <dd className="mt-2 font-mono text-xs leading-relaxed">
+                    {probe
+                      ? `${probe.http_status == null ? "No response" : `HTTP ${probe.http_status}`} / ${probe.latency_ms.toFixed(1)} ms`
+                      : "Not observed"}
+                  </dd>
+                  <p className="mt-1 text-[11px] text-stone-500">
+                    {formatClock(probe?.observed_at)}
+                  </p>
+                </div>
+              );
+            })}
+          </dl>
+        )}
+        {run && !compact && (
           <dl className="mt-6 grid gap-5 border-t border-stone-200 pt-5 sm:grid-cols-3">
             <div>
               <dt className="ui-eyebrow">Before injection</dt>
@@ -476,6 +533,17 @@ export default function DemoEvidence({
           </dl>
         )}
       </div>
+      {incident && (verified || review || reset) && (
+        <IncidentSummary
+          incident={incident}
+          run={run}
+          checks={checks}
+          receipts={studentReceipts}
+          scenario={scenarioTitle || incident.title}
+          runtime={runtime}
+          stale={stale || !!runtimeError}
+        />
+      )}
       {!data ? (
         <div
           aria-label="Loading recorded workflow"
@@ -488,7 +556,9 @@ export default function DemoEvidence({
         </div>
       ) : (
         <ol
-          className="grid sm:grid-cols-2 lg:grid-cols-5"
+          className={
+            compact ? "studio-steps" : "grid sm:grid-cols-2 lg:grid-cols-5"
+          }
           aria-label="Recorded incident workflow"
         >
           {steps.map((step, index) => {
@@ -505,7 +575,7 @@ export default function DemoEvidence({
             return (
               <li
                 key={step.title}
-                className="workflow-step"
+                className={`workflow-step ${compact ? "studio-step" : ""}`}
                 data-state={status}
                 aria-current={current ? "step" : undefined}
               >
@@ -541,13 +611,34 @@ export default function DemoEvidence({
                       : step.at,
                   )}
                 </p>
-                <p className="mt-2 break-words text-xs leading-relaxed text-stone-600">
+                <p
+                  className={`mt-2 break-words text-xs leading-relaxed text-stone-600 ${compact ? "studio-step-detail" : ""}`}
+                >
                   {step.detail}
                 </p>
               </li>
             );
           })}
         </ol>
+      )}
+      {compact && incident && (
+        <section
+          aria-label="Recorded Rebound decision"
+          className="border-t border-stone-200 px-5 py-4 sm:px-6"
+        >
+          <p className="text-xs font-medium text-stone-700">
+            {providerName(incident)}
+          </p>
+          <p className="mt-2 text-sm text-stone-600">
+            {recorded("POLICY_EVALUATED")?.public_message ||
+              "No policy verdict recorded yet."}
+          </p>
+          <p className="mt-2 break-words font-mono text-xs text-stone-600">
+            {incident.runbook_executions[0]
+              ? `${incident.runbook_executions[0].runbook_id} / ${incident.runbook_executions[0].status}`
+              : "No bounded recovery action recorded."}
+          </p>
+        </section>
       )}
       <div className="border-t border-stone-200 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -692,7 +783,10 @@ export default function DemoEvidence({
           )}
         </details>
         {incident && (
-          <details className="mt-3 border-t border-stone-200 pt-2" open>
+          <details
+            className="mt-3 border-t border-stone-200 pt-2"
+            open={!compact}
+          >
             <summary className="text-sm font-medium text-stone-800">
               Incident event timeline ({events.length})
             </summary>

@@ -407,3 +407,131 @@ textarea {
   background: rgb(var(--neutral-300));
   border-radius: 4px;
 }
+
+/* Demo Studio: two perspectives on the same isolated workload. */
+.studio-step {
+  display: grid;
+  grid-template-columns: minmax(85px, 0.8fr) minmax(90px, 1fr) minmax(
+      100px,
+      1fr
+    );
+  gap: 8px 12px;
+  align-items: baseline;
+  padding: 12px 20px;
+}
+.studio-step h3,
+.studio-step > p {
+  margin-top: 0;
+}
+.studio-step-detail {
+  grid-column: 2 / -1;
+}
+.studio-step[data-state="current"] {
+  border-top-width: 1px;
+  border-left: 3px solid rgb(var(--neutral-900));
+}
+.studio-student {
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.025);
+}
+.studio-outcome {
+  background: rgb(var(--neutral-50));
+}
+.incident-print {
+  display: none;
+}
+.incident-report h1 {
+  font-size: 26px;
+  margin: 12px 0 20px;
+}
+.incident-report h2 {
+  font-size: 16px;
+  margin: 24px 0 12px;
+  font-weight: 600;
+}
+.incident-report p {
+  margin: 10px 0;
+}
+.incident-report table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.incident-report th,
+.incident-report td {
+  text-align: left;
+  border-bottom: 1px solid #ccc;
+  padding: 10px;
+}
+.incident-report li {
+  margin: 0 0 14px;
+}
+.incident-report .report-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 22px 0;
+}
+.incident-report dt,
+.report-footnote {
+  font-size: 11px;
+  color: #555;
+}
+.incident-report dd {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  margin-top: 4px;
+}
+@media (max-width: 639px) {
+  .studio-step {
+    grid-template-columns: 1fr 1fr;
+    padding: 12px 16px;
+  }
+  .studio-step > p:not(.studio-step-detail) {
+    grid-column: 1 / -1;
+  }
+  .studio-step-detail {
+    grid-column: 1 / -1;
+  }
+}
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    --neutral-500: 85 85 85;
+    --neutral-600: 60 60 60;
+    --neutral-700: 40 40 40;
+    --neutral-900: 15 15 15;
+    --page-bg: 255 255 255;
+    color-scheme: light;
+  }
+  body {
+    margin: 0;
+    background: white;
+    color: black;
+    font-size: 12px;
+  }
+  body:has(> .incident-print) > * {
+    display: none !important;
+  }
+  body > .incident-print {
+    display: block !important;
+    padding: 12mm;
+  }
+  .incident-report {
+    color: black;
+  }
+  .incident-report h2,
+  .incident-report h1 {
+    break-after: avoid;
+  }
+  .incident-report tr,
+  .incident-report li {
+    break-inside: avoid;
+  }
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+}
+.studio-outcome {
+  scroll-margin-top: 8rem;
+}
