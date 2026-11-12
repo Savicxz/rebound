@@ -1,7 +1,10 @@
 ﻿# Demonstration walkthrough
 
-Start with `python start.py`. Click **Start local demo** and open Scenarios.
+Start with `python start.py`. Click **Start local demo** to enter Demo Studio.
 No cloud IAM roles are needed. Each school profile shares one isolated workload.
+
+Use the [current 90-second judge walkthrough](demo-studio/README.md) for the three
+curated stories, independent student requests, printing, screenshots and test notes.
 
 ## Automatic recovery
 
@@ -38,11 +41,12 @@ No cloud IAM roles are needed. Each school profile shares one isolated workload.
 5. Download evidence JSON for a completed incident. Reset closes review incidents
    administratively; it does not count them as verified recovery.
 
-## Network and AV handoff
+## Advanced API-only network and AV profiles
 
-Select mesh uplink loss, exam Wi-Fi congestion, intranet DNS, projector input,
-auditorium audio, or attendance check-in unavailability. Read the modelled signal
-path, inject the fault, then use **Send test request** to retrieve the synthetic
+The backend catalog also includes mesh uplink loss, exam Wi-Fi congestion, intranet DNS, projector input,
+auditorium audio, and attendance check-in unavailability. These are outside the
+curated Studio; use the existing authenticated demo API for advanced testing.
+Read the modelled signal path and use the workflow-check API to retrieve the synthetic
 controller response. The monitor opens an incident and stops for human review.
 Show the suggested responsible team and next steps. No ticket is actually sent.
 The network and equipment signals are simulated; the HTTP request and incident

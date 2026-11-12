@@ -127,7 +127,7 @@ export default function OverviewView({
               className="min-h-11 text-stone-600 underline decoration-stone-300 underline-offset-4 hover:text-stone-950"
               onClick={() => onNavigate("demo")}
             >
-              Open demonstration scenarios
+              Open Demo Studio
             </button>
           )}
         </div>

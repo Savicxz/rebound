@@ -23,7 +23,7 @@ export default function Navbar({
     { id: "overview", label: "Service watch" },
     { id: "incidents", label: "Incidents" },
     { id: "audit", label: "Audit trail" },
-    { id: "demo", label: "Scenarios" },
+    { id: "demo", label: "Demo Studio" },
     { id: "settings", label: "Settings" },
   ];
   return (
@@ -38,7 +38,7 @@ export default function Navbar({
               R
             </span>
             Rebound
-            <span className="ml-3 text-xs font-normal text-stone-500">
+            <span className="ml-3 hidden text-xs font-normal text-stone-500 sm:inline">
               / sandbox
             </span>
           </p>
@@ -78,9 +78,16 @@ export default function Navbar({
             className="flex min-h-11 items-center gap-2 text-xs text-stone-700 hover:text-stone-950"
           >
             <User aria-hidden="true" className="h-3.5 w-3.5" />
-            {currentUser.username === "Guest"
-              ? "Guest"
-              : `${currentUser.username} / Sign out`}
+            {currentUser.username === "Guest" ? (
+              "Guest"
+            ) : (
+              <>
+                <span className="hidden sm:inline">
+                  {currentUser.username} /{" "}
+                </span>
+                Sign out
+              </>
+            )}
           </button>
         </div>
       </div>

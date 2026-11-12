@@ -47,7 +47,10 @@ function loadView(name) {
   const loaded = new Module(source, module);
   loaded.filename = source;
   loaded.paths = module.paths;
-  loaded.require = component.require;
+  loaded.require = (request) =>
+    request.startsWith(".")
+      ? loadView(path.resolve(path.dirname(source), request))
+      : component.require(request);
   loaded._compile(
     ts.transpileModule(fs.readFileSync(source, "utf8"), {
       compilerOptions: {
@@ -210,7 +213,7 @@ demoData.active_incident = {
 };
 assert.match(renderDemo(demoData), /Blocked for human review/);
 assert.match(renderDemo(demoData), /Human review required/);
-assert.match(renderDemo(demoData), /Failure, understood/);
+assert.match(renderDemo(demoData), /Demo Studio/);
 assert.match(renderDemo(demoData), /Download evidence JSON/);
 const newRun = renderDemo({
   ...demoData,
@@ -231,7 +234,7 @@ assert.doesNotMatch(newRun, /demo-1/);
 assert.match(newRun, /0 of 3 failed checks recorded/);
 assert.match(
   renderDemo(demoData),
-  /no school systems or student records are connected/,
+  /No real school infrastructure, student records/,
 );
 console.log(
   "Demo checks passed: loading, fault detection, escalation and scenario instructions.",
@@ -578,10 +581,7 @@ const unavailable = renderToStaticMarkup(
   }),
 );
 assert.match(unavailable, /Refresh service data before changing the sandbox/);
-assert.match(
-  unavailable,
-  /class="ui-button ui-button-primary shrink-0" disabled/,
-);
+assert.match(unavailable, /class="ui-button" disabled/);
 const clipped = flow.runChecks({
   ...liveData,
   demo_run: {
@@ -649,3 +649,104 @@ assert.match(pageSource, /key=\{currentTab\}/);
 console.log(
   "Live demo checks passed: actual phases, counters, terminal states, provider provenance, stale evidence, run isolation, monochrome charts and reduced motion.",
 );
+
+const studio = loadView("../lib/demo-studio");
+const studentPanel = loadView("StudentServicePanel");
+const reports = loadView("IncidentSummary");
+assert.equal(Object.keys(studio.studioScenarios).length, 3);
+const untestedStudent = renderToStaticMarkup(
+  React.createElement(studentPanel.default, {
+    scenario: "crash",
+    receipts: [],
+    busy: false,
+    error: null,
+    disabled: false,
+    onRequest() {},
+  }),
+);
+assert.match(untestedStudent, /Not tested yet/);
+assert.doesNotMatch(untestedStudent, /Service request succeeded/);
+const apiError = renderToStaticMarkup(
+  React.createElement(studentPanel.default, {
+    scenario: "crash",
+    receipts: [],
+    busy: false,
+    error: "API disconnected",
+    disabled: true,
+    onRequest() {},
+  }),
+);
+assert.match(apiError, /not evidence that the school service failed/);
+assert.doesNotMatch(apiError, /Course materials are unreachable/);
+const queueStudent = renderToStaticMarkup(
+  React.createElement(studentPanel.default, {
+    scenario: "attendance_backlog",
+    receipts: [
+      {
+        checked_at: now,
+        http_status: 429,
+        latency_ms: 5,
+        stage: "during",
+        scenario_id: "attendance_backlog",
+        response: { queued_records: 12 },
+      },
+    ],
+    busy: false,
+    error: null,
+    disabled: false,
+    onRequest() {},
+  }),
+);
+assert.match(queueStudent, /12 synthetic records are queued/);
+assert.doesNotMatch(queueStudent, /Service request succeeded/);
+assert.equal(
+  reports.measuredRecovery({ ...incident, state: "CLOSED", resolved_at: now }),
+  "Not verified",
+);
+const reportMarkup = renderToStaticMarkup(
+  React.createElement(reports.IncidentReport, {
+    report: {
+      incident: { ...analysis, state: "AWAITING_APPROVAL" },
+      run: liveData.demo_run,
+      scenario: "Database contention",
+      checks: [],
+      receipts: [],
+      runtime: null,
+      stale: true,
+    },
+    generatedAt: now,
+  }),
+);
+assert.match(reportMarkup, /Not verified/);
+assert.match(reportMarkup, /No recovery execution recorded/);
+assert.match(reportMarkup, /Deterministic demo fallback/);
+assert.match(reportMarkup, /Evidence warning/);
+assert.doesNotMatch(reportMarkup, /Portal restored/);
+assert.match(pageSource, /setCurrentTab\("demo"\)/);
+console.log(
+  "Demo Studio checks passed: curated stories, unknown and disconnected service states, queue receipts, honest printing and onboarding.",
+);
+const failedActionMarkup = renderToStaticMarkup(
+  React.createElement(reports.default, {
+    incident: {
+      ...analysis,
+      state: "ESCALATED",
+      auto_recovery_attempted: true,
+      runbook_executions: [
+        {
+          id: "failed-recovery",
+          runbook_id: "RESTART_DEMO_CHILD_SERVICE",
+          status: "FAILED",
+        },
+      ],
+    },
+    run: liveData.demo_run,
+    scenario: "Portal crash",
+    checks: [],
+    receipts: [],
+    runtime: null,
+    stale: false,
+  }),
+);
+assert.match(failedActionMarkup, /Recovery needs human attention/);
+assert.doesNotMatch(failedActionMarkup, /Unsafe restart prevented/);

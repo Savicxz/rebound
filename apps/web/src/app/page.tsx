@@ -300,6 +300,8 @@ export default function Home() {
                 role: result.user.role,
                 token: result.access_token,
               });
+              setCurrentTab("demo");
+              window.scrollTo({ top: 0, behavior: "auto" });
             }}
           />
         )}
