@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  devIndicators: false,
   output: "standalone",
+  distDir: process.env.REBOUND_NEXT_DIST_DIR || ".next",
   async rewrites() {
     return [
       {

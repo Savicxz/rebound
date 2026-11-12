@@ -31,7 +31,12 @@ Stop any manually started services before using the launcher.
 ## Demo access
 
 Click **Start local demo** to use one session on localhost. No Google Cloud account
-or IAM role setup is required. The button is disabled server-side outside demo mode,
+or IAM role setup is required. Sign-in opens the **Demo Studio**, with a student
+service panel beside the independent monitoring and recovery evidence. Follow the
+[90-second judge walkthrough](docs/demo-studio/README.md) for curated scenarios,
+printable evidence, screenshots and repeatable live browser tests.
+
+The button is disabled server-side outside demo mode,
 for remote requests, or when `LOCAL_DEMO_ACCESS=false`. Container and remote demos
 can use **Account access for other deployments**. Read-only service data is public.
 The defaults below are for local demonstrations only:
@@ -46,19 +51,24 @@ Accounts are seeded once; changing the environment does not change an existing
 account's password. Use a new demo database when setting up a separate environment.
 Do not commit `.env`, database files or credentials.
 
-## Try school workflow failures
+## Try the Demo Studio
 
-1. Open **Scenarios** and confirm the service is healthy.
+1. Click **Start local demo** to open **Demo Studio**. Confirm the service is healthy.
 2. Simulate a learning-portal crash. Three failed checks normally open an incident; policy
    may permit one restart. Resolution requires two successful health checks.
 3. Review the process PID, restart count, probe receipts, analysis source and event
    journal. A successful restart alone does not prove recovery.
-4. Download the incident evidence JSON, which includes the incident journal, bounded
-   recent probe sample and timestamped runtime observation.
+4. Compare student-request receipts and before/failure/after observations. Print the
+   human-readable incident summary or download the JSON evidence snapshot.
 5. Reset the sandbox, wait for healthy checks, then choose another workflow.
    Reset closes open incidents without marking them as verified recoveries.
 6. Inspect complete messages and payloads in **Audit trail**. Use **Load older
    events** to inspect earlier records.
+
+The Studio curates learning-portal crash, registration database contention and
+attendance queue replay. Expand **Choose a different story** to select a scenario.
+The complete backend catalog below remains available through the existing API;
+additional infrastructure scenarios are not part of the focused judge workspace.
 
 | School workflow | Actual injected fault | Response |
 | --- | --- | --- |
