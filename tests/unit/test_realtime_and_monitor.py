@@ -365,3 +365,32 @@ def test_production_launcher_requires_a_build(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["start.py", "--production-web", "--check"])
     with pytest.raises(RuntimeError, match="Production web build is missing"):
         start.main()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_sql_aggregate_matches_recorded_resolutions():
+    from services.api.main import get_dashboard, ensure_utc
+
+    async with AsyncSessionLocal() as session:
+        rows = (
+            await session.execute(
+                select(Incident.detected_at, Incident.resolved_at).where(
+                    Incident.state == "RESOLVED", Incident.resolved_at.is_not(None)
+                )
+            )
+        ).all()
+        expected = (
+            round(
+                sum(
+                    (ensure_utc(resolved) - ensure_utc(detected)).total_seconds()
+                    for detected, resolved in rows
+                )
+                / len(rows),
+                1,
+            )
+            if rows
+            else None
+        )
+        dashboard = await get_dashboard(session)
+        assert dashboard.metrics.total_recovered_count == len(rows)
+        assert dashboard.metrics.average_recovery_time_seconds == expected

@@ -17,6 +17,7 @@ async def current_revision():
         return {
             "type": "COMMITTED",
             "revision": row.revision,
+            "data": {"revision": row.revision},
             "timestamp": row.changed_at.isoformat(),
         }
 

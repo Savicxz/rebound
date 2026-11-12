@@ -1,6 +1,6 @@
 # Realtime and monitoring optimization
 
-Base: `main` at `d8c1d4f` (merged Demo Studio PR #2). The separate visual-polish PR #3 is not part of this branch.
+Base: API measurements started against `main` at `d8c1d4f`. While implementation was in progress, PR #3 merged; this branch incorporates `main` at `1c27931`. The browser comparison was rerun against that matching UI/1366 ? 768 viewport. PR #3 contains no backend changes, so the API baseline remains equivalent.
 
 ## What changed
 
@@ -42,7 +42,7 @@ The small dashboard is slower: there is one extra aggregate/active query in exch
 
 Browser benchmark: `cd apps/web; npx playwright test e2e/performance.spec.ts`. It starts the isolated real stack, runs two real crash recoveries with unchanged 3-failure/2-verification thresholds, records SSE arrivals, request concurrency, recorded timestamps, a committed acknowledgement's visibility, frame intervals and long tasks. `before-browser.json` records the same test on the base commit. Test polling is 2 seconds in both samples. Dev compilation and system scheduling affect these small samples. Record-to-visible delay includes record creation, commit, delivery, fetch and rendering. Commit-return-to-visible starts after the acknowledgement HTTP response; it is a practical visibility measurement, not an exact database commit clock.
 
-A browser microbenchmark of 1,000 timestamp formatting calls measured 35.5 ms using repeated locale setup versus 1.3 ms reusing a formatter. That justified the focused formatter change; it does not establish an overall dashboard frame-rate improvement.
+A browser microbenchmark of 1,000 timestamp formatting calls measured 33.5 ms using repeated locale setup versus 0.6 ms reusing a formatter. That justified the focused formatter change; it does not establish an overall dashboard frame-rate improvement.
 
 ## Safety and limits
 
@@ -58,19 +58,19 @@ Same Chromium viewport, Next.js development mode, keyless fallback, two crash ru
 
 | Measurement | Before | After |
 |---|---:|---:|
-| Injection ? incident detection, run 1 / 2 | 11,439 / 11,344 ms | 7,555 / 7,222 ms |
-| Detection ? analysis record, run 1 / 2 | 24 / 18 ms | 44 / 31 ms |
-| Recovery start ? verified resolution, run 1 / 2 | 5,189 / 5,181 ms | 3,998 / 4,003 ms |
-| Resolution record ? visible outcome, run 1 / 2 | 4,970 / 394 ms | 617 / 352 ms |
-| Committed acknowledgement response ? visible event | 4,942 ms | 867 ms |
+| Injection ? incident detection, run 1 / 2 | 11,421 / 12,004 ms | 7,563 / 7,137 ms |
+| Detection ? analysis record, run 1 / 2 | 26 / 19 ms | 34 / 28 ms |
+| Recovery start ? verified resolution, run 1 / 2 | 5,088 / 5,173 ms | 3,999 / 3,990 ms |
+| Resolution record ? visible outcome, run 1 / 2 | 4,208 / 4,896 ms | 626 / 417 ms |
+| Committed acknowledgement response ? visible event | 4,965 ms | 373 ms |
 | Browser frame interval p95 | 16.7 ms | 16.7 ms |
-| Longest frame / longest observed task | 116.6 / 133 ms | 133.4 / 154 ms |
-| Dashboard requests during measured journey | 10 in 50.3 s | 22 in 28.4 s |
+| Longest frame / longest observed task | 133.3 / 138 ms | 133.3 / 145 ms |
+| Dashboard requests during measured journey | 11 in 55.4 s | 22 in 27.9 s |
 | Maximum concurrent dashboard requests | 1 | 1 |
 | Committed SSE messages observed | 0 | 23 |
 
 Analysis persistence was slightly slower in these samples, and rendering did not improve measurably. More dashboard requests after the fix reflect real intermediate probe/incident updates finally arriving, rather than the old five-second polling-only delivery. Request-burst regression checks independently prove coalescing and duplicate-revision suppression; this table does not claim total network traffic fell. The two samples are too small for population-level latency conclusions. Independent verification and exactly one automatic execution per run were asserted in the benchmark, in addition to the existing scenario tests.
 
-Validation: 56 Python tests passed locally, including cross-process commit visibility, rollback, bounded tasks, timeout fallback, reset during analysis, concurrent event sequences, single recovery execution and interrupted-action escalation. All eight Chromium tests passed. TypeScript/regression checks and the standard Next.js production build passed. PostgreSQL and production-web smoke results are recorded with the PR after CI/build verification.
+Validation: 57 Python tests passed locally, including cross-process commit visibility, rollback, bounded tasks, timeout fallback, reset during analysis, concurrent event sequences, single recovery execution and interrupted-action escalation. All eight Chromium tests passed. TypeScript/regression checks and the standard Next.js production build passed. PostgreSQL 16 passed the 56-test Python suite in CI before the final aggregate-equivalence regression was added; final-head results are recorded in the PR.
 
 Production validation: both `npm run build` and `npm run build:production` passed. The isolated standalone server was started on port 3102 and served its page, a JavaScript asset and the API health proxy with HTTP 200; the smoke process was terminated afterward. Final `npm run check` and `npm run format:check` passed.
