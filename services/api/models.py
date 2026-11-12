@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Text,
+    Index,
 )
 from sqlalchemy.orm import relationship
 from services.api.database import Base
@@ -225,3 +226,22 @@ class Setting(Base):
     json_value = Column(Text, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=get_utc_now, nullable=False)
     updated_by = Column(String(64), default="system", nullable=False)
+
+
+class RealtimeRevision(Base):
+    """One transactionally locked watermark, shared by API and worker processes."""
+
+    __tablename__ = "realtime_revision"
+    id = Column(Integer, primary_key=True)
+    revision = Column(Integer, nullable=False, default=0)
+    changed_at = Column(DateTime(timezone=True), default=get_utc_now, nullable=False)
+
+
+Index(
+    "ix_probes_service_time",
+    HealthObservation.service_id,
+    HealthObservation.observed_at,
+)
+Index("ix_events_incident_sequence", IncidentEvent.incident_id, IncidentEvent.sequence)
+Index("ix_analysis_incident_time", AIAnalysis.incident_id, AIAnalysis.created_at)
+Index("ix_incident_service_state", Incident.service_id, Incident.state)

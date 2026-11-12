@@ -2,9 +2,11 @@ import asyncio
 import time
 import json
 import logging
+import signal
 from datetime import timezone, timedelta
 import httpx
 from sqlalchemy.future import select
+from sqlalchemy import update
 
 from services.api.config import settings
 from services.api.database import AsyncSessionLocal
@@ -19,9 +21,9 @@ from services.api.models import (
     generate_uuid,
     get_utc_now,
 )
-from services.api.analyzer import get_analyzer, sanitize_logs
+from services.api.analyzer import get_analyzer, sanitize_logs, DeterministicDemoAnalyzer
 from services.api.policy import evaluate_incident_policy, execute_runbook
-from services.api.events import broadcaster
+from services.api.http_client import transport_client
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -38,11 +40,25 @@ async def record_event(
     actor_id: str = "monitor_worker",
     metadata: dict = None,
 ) -> IncidentEvent:
-    # Get current max sequence
+    # Serialize appenders on the incident before assigning a sequence. This works
+    # on SQLite (writer lock) and PostgreSQL (row lock), including API writers.
+    # Consistent service -> incident lock order with probe/reset writers on PostgreSQL.
+    await session.execute(
+        select(Service.id)
+        .join(Incident, Incident.service_id == Service.id)
+        .where(Incident.id == incident_id)
+        .with_for_update(of=Service)
+    )
+    await session.execute(
+        update(Incident)
+        .where(Incident.id == incident_id)
+        .values(version=Incident.version + 1)
+    )
     q = (
         select(IncidentEvent)
         .where(IncidentEvent.incident_id == incident_id)
         .order_by(IncidentEvent.sequence.desc())
+        .limit(1)
     )
     res = await session.execute(q)
     last_event = res.scalars().first()
@@ -63,17 +79,6 @@ async def record_event(
     await session.flush()
 
     # Broadcast event
-    await broadcaster.broadcast(
-        "incident_event",
-        {
-            "incident_id": incident_id,
-            "event_type": event_type,
-            "message": message,
-            "actor_type": actor_type,
-            "sequence": seq,
-            "timestamp": event.at.isoformat(),
-        },
-    )
     return event
 
 
@@ -92,19 +97,9 @@ async def create_notification(
     )
     session.add(notif)
     await session.flush()
-    await broadcaster.broadcast(
-        "notification",
-        {
-            "id": notif.id,
-            "incident_id": incident_id,
-            "message": message,
-            "channel": channel,
-            "timestamp": notif.created_at.isoformat(),
-        },
-    )
 
 
-async def probe_service(service: Service) -> dict:
+async def probe_service(service: Service, client=None) -> dict:
     url = service.health_url
     start = time.perf_counter()
     status_code = None
@@ -113,9 +108,7 @@ async def probe_service(service: Service) -> dict:
     details = ""
 
     try:
-        async with httpx.AsyncClient(
-            timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS
-        ) as client:
+        async with probe_client(client) as client:
             start = time.perf_counter()
             resp = await client.get(url)
             latency = (time.perf_counter() - start) * 1000.0
@@ -166,20 +159,43 @@ async def handle_incident_flow(
     logger.info(
         f"Initiating incident triage for incident {incident.id} ({incident.title})"
     )
-    incident.state = "ANALYZING"
-    await session.commit()
-    await broadcaster.broadcast(
-        "incident_state", {"incident_id": incident.id, "state": "ANALYZING"}
+    claimed = await session.execute(
+        update(Incident)
+        .where(Incident.id == incident.id, Incident.state == "OPEN")
+        .values(state="ANALYZING")
     )
+    session.info["realtime_changed"] = bool(claimed.rowcount)
+    await session.commit()
+    if not claimed.rowcount:
+        return
+    await session.refresh(incident)
+    await session.commit()  # release read transaction while the provider is pending
 
     # 1. AI Analysis
     analyzer = get_analyzer()
-    analysis_result = await analyzer.analyze(
+    arguments = dict(
         incident_id=incident.id,
         service_name=service.display_name,
         recent_probes=recent_probes,
         last_error=incident.last_error,
     )
+    try:
+        analysis_result = await asyncio.wait_for(
+            analyzer.analyze(**arguments), timeout=settings.ANALYSIS_TIMEOUT_SECONDS
+        )
+    except Exception as error:
+        logger.warning(
+            "Analysis failed (%s); using labelled fallback", type(error).__name__
+        )
+        analysis_result = await DeterministicDemoAnalyzer().analyze(**arguments)
+        analysis_result.fallback_reason = (
+            f"Analysis unavailable ({type(error).__name__})"
+        )
+    # Reset or operator actions may have changed the incident while analysis ran.
+    await session.refresh(incident)
+    await session.refresh(service)
+    if incident.state != "ANALYZING":
+        return
 
     # Persist AI analysis
     ai_record = AIAnalysis(
@@ -188,9 +204,11 @@ async def handle_incident_flow(
         provider=analysis_result.provider,
         schema_version="1.0",
         result_json=analysis_result.model_dump_json(),
-        model_id=getattr(analyzer, "model_id", "unknown")
-        if analysis_result.provider == "gemini_api"
-        else "deterministic_engine",
+        model_id=(
+            getattr(analyzer, "model_id", "unknown")
+            if analysis_result.provider == "gemini_api"
+            else "deterministic_engine"
+        ),
         error=analysis_result.fallback_reason,
         created_at=get_utc_now(),
     )
@@ -229,17 +247,26 @@ async def handle_incident_flow(
 
     # 3. Action execution or Escalation
     if policy_decision.auto_recover and policy_decision.runbook_id:
-        incident.state = "RECOVERING"
-        incident.auto_recovery_attempted = True
-        incident.auto_recovery_cooldown_until = get_utc_now() + timedelta(
-            seconds=settings.AUTO_RECOVERY_COOLDOWN_SECONDS
+        claim = await session.execute(
+            update(Incident)
+            .where(
+                Incident.id == incident.id,
+                Incident.state == "ANALYZING",
+                Incident.auto_recovery_attempted.is_(False),
+            )
+            .values(
+                state="RECOVERING",
+                auto_recovery_attempted=True,
+                auto_recovery_cooldown_until=get_utc_now()
+                + timedelta(seconds=settings.AUTO_RECOVERY_COOLDOWN_SECONDS),
+            )
         )
-        await session.commit()
-        await broadcaster.broadcast(
-            "incident_state", {"incident_id": incident.id, "state": "RECOVERING"}
-        )
+        if not claim.rowcount:
+            await session.rollback()
+            return
+        session.info["realtime_changed"] = True
 
-        idempotency_key = f"rec_{incident.id}_{int(time.time())}"
+        idempotency_key = f"rec_{incident.id}"
         runbook_exec = RunbookExecution(
             id=generate_uuid(),
             incident_id=incident.id,
@@ -261,14 +288,21 @@ async def handle_incident_flow(
             actor_id="runbook_executor",
         )
 
+        await session.commit()  # never hold a database write lock across runner I/O
         success, msg = await execute_runbook(
             runbook_id=policy_decision.runbook_id,
             incident_id=incident.id,
             idempotency_key=idempotency_key,
         )
 
+        await session.refresh(incident)
+        await session.refresh(service)
         runbook_exec.finished_at = get_utc_now()
         runbook_exec.runner_response_redacted = msg
+        if incident.state != "RECOVERING":
+            runbook_exec.status = "SUCCESS" if success else "FAILED"
+            await session.commit()
+            return  # reset/closure never becomes verified recovery
 
         if success:
             runbook_exec.status = "SUCCESS"
@@ -301,7 +335,14 @@ async def handle_incident_flow(
             )
     else:
         # Scenario B: Human approval or escalation
-        incident.state = policy_decision.state_transition
+        transition = await session.execute(
+            update(Incident)
+            .where(Incident.id == incident.id, Incident.state == "ANALYZING")
+            .values(state=policy_decision.state_transition)
+        )
+        if not transition.rowcount:
+            await session.rollback()
+            return
         await record_event(
             session,
             incident.id,
@@ -317,9 +358,6 @@ async def handle_incident_flow(
         )
 
     await session.commit()
-    await broadcaster.broadcast(
-        "incident_state", {"incident_id": incident.id, "state": incident.state}
-    )
 
 
 def ensure_utc(dt):
@@ -330,7 +368,7 @@ def ensure_utc(dt):
     return dt
 
 
-async def monitor_iteration():
+async def monitor_iteration(processor=None, client=None):
     """Single polling and state transition tick."""
     async with AsyncSessionLocal() as session:
         # Load all monitored services
@@ -339,7 +377,7 @@ async def monitor_iteration():
         services = res.scalars().all()
 
         for service in services:
-            probe = await probe_service(service)
+            probe = await probe_service(service, client)
             obs = HealthObservation(
                 id=generate_uuid(),
                 service_id=service.id,
@@ -446,9 +484,13 @@ async def monitor_iteration():
                         ]
 
                         # Trigger triage flow asynchronously or inline
-                        await handle_incident_flow(
-                            session, active_incident, service, recent_probe_dicts
-                        )
+                        if processor is None:
+                            # Explicit one-shot calls retain their historical awaitable contract.
+                            await handle_incident_flow(
+                                session, active_incident, service, recent_probe_dicts
+                            )
+                        else:
+                            processor.submit(active_incident.id)
 
             else:
                 # Successful probe
@@ -503,32 +545,160 @@ async def monitor_iteration():
 
             await session.commit()
 
-            # Broadcast service status update
-            await broadcaster.broadcast(
-                "service_health",
-                {
-                    "id": service.id,
-                    "slug": service.slug,
-                    "status": service.status,
-                    "latency_ms": probe["latency_ms"],
-                    "last_checked_at": service.last_checked_at.isoformat()
-                    if service.last_checked_at
-                    else None,
-                },
+
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def probe_client(client=None):
+    if client is not None:
+        yield client
+    else:
+        async with httpx.AsyncClient(
+            timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS
+        ) as owned:
+            yield owned
+
+
+class IncidentProcessor:
+    """Bounded tasks; durable OPEN claims prevent duplicate triage across workers."""
+
+    def __init__(self):
+        self.tasks = {}
+
+    def submit(self, incident_id):
+        if (
+            incident_id in self.tasks
+            or len(self.tasks) >= settings.INCIDENT_CONCURRENCY
+        ):
+            return
+        task = asyncio.create_task(self.process(incident_id))
+        self.tasks[incident_id] = task
+        task.add_done_callback(lambda done: self.finished(incident_id, done))
+
+    def finished(self, incident_id, task):
+        self.tasks.pop(incident_id, None)
+        if not task.cancelled() and task.exception():
+            logger.error("Incident task failed: %s", task.exception())
+
+    async def process(self, incident_id):
+        async with AsyncSessionLocal() as session:
+            incident = await session.get(Incident, incident_id)
+            if not incident or incident.state != "OPEN":
+                return
+            service = await session.get(Service, incident.service_id)
+            probes = (
+                (
+                    await session.execute(
+                        select(HealthObservation)
+                        .where(HealthObservation.service_id == service.id)
+                        .order_by(HealthObservation.observed_at.desc())
+                        .limit(5)
+                    )
+                )
+                .scalars()
+                .all()
             )
+            evidence = [
+                {
+                    "id": p.id,
+                    "http_status": p.http_status,
+                    "latency_ms": p.latency_ms,
+                    "success": p.success,
+                    "sanitized_details": p.sanitized_details,
+                }
+                for p in probes
+            ]
+            try:
+                await handle_incident_flow(session, incident, service, evidence)
+            except BaseException:
+                await session.rollback()
+                await session.refresh(incident)
+                if incident.state in ("ANALYZING", "RECOVERING"):
+                    incident.state = "ESCALATED"
+                    running = (
+                        (
+                            await session.execute(
+                                select(RunbookExecution).where(
+                                    RunbookExecution.incident_id == incident.id,
+                                    RunbookExecution.status == "RUNNING",
+                                )
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
+                    for execution in running:
+                        execution.status = "FAILED"
+                        execution.finished_at = get_utc_now()
+                        execution.runner_response_redacted = "Processing interrupted; external action completion is unknown. Do not retry automatically."
+                    await record_event(
+                        session,
+                        incident.id,
+                        "PROCESSING_INTERRUPTED",
+                        "Incident processing interrupted. An external action may be incomplete; human investigation required.",
+                    )
+                    await session.commit()
+                raise
+
+    async def close(self):
+        tasks = list(self.tasks.values())
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def run_monitor_worker():
     logger.info(
         f"[MonitorWorker] Starting daemon. Polling every {settings.HEALTH_CHECK_INTERVAL_SECONDS}s..."
     )
-    while True:
+    loop = asyncio.get_running_loop()
+    main_task = asyncio.current_task()
+    if hasattr(loop, "add_signal_handler"):
         try:
-            await monitor_iteration()
-        except Exception as e:
-            logger.error(f"[MonitorWorker] Error in monitor loop: {e}", exc_info=True)
-        await asyncio.sleep(settings.HEALTH_CHECK_INTERVAL_SECONDS)
+            loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
+        except NotImplementedError:
+            pass  # Windows launchers terminate their owned process tree.
+    processor = IncidentProcessor()
+    async with httpx.AsyncClient(
+        timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS
+    ) as client:
+        token = transport_client.set(client)
+        try:
+            while True:
+                started = time.monotonic()
+                try:
+                    await monitor_iteration(processor, client)
+                    async with AsyncSessionLocal() as session:
+                        pending = (
+                            (
+                                await session.execute(
+                                    select(Incident.id)
+                                    .where(Incident.state == "OPEN")
+                                    .limit(settings.INCIDENT_CONCURRENCY)
+                                )
+                            )
+                            .scalars()
+                            .all()
+                        )
+                    for incident_id in pending:
+                        processor.submit(incident_id)
+                except Exception as error:
+                    logger.error("Monitor tick failed: %s", error, exc_info=True)
+                await asyncio.sleep(
+                    max(
+                        0,
+                        settings.HEALTH_CHECK_INTERVAL_SECONDS
+                        - (time.monotonic() - started),
+                    )
+                )
+        finally:
+            await processor.close()
+            transport_client.reset(token)
 
 
 if __name__ == "__main__":
-    asyncio.run(run_monitor_worker())
+    try:
+        asyncio.run(run_monitor_worker())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass

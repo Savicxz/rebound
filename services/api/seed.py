@@ -4,7 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy import and_, or_
 from services.api.config import settings
 from services.api.database import AsyncSessionLocal, engine, Base
-from services.api.models import User, Service, Setting, get_utc_now
+from services.api.models import User, Service, Setting, RealtimeRevision, get_utc_now
 from services.api.security import hash_password
 
 logger = logging.getLogger("rebound.seed")
@@ -14,6 +14,19 @@ async def init_database_and_seed():
     """Initializes tables and seeds initial demo services and accounts."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all does not add indexes to already-existing tables.
+        for table in Base.metadata.sorted_tables:
+            for index in table.indexes:
+                await conn.run_sync(
+                    lambda sync, index=index: index.create(sync, checkfirst=True)
+                )
+        from sqlalchemy import text
+
+        await conn.execute(
+            text(
+                "INSERT INTO realtime_revision (id, revision, changed_at) VALUES (1, 0, CURRENT_TIMESTAMP) ON CONFLICT (id) DO NOTHING"
+            )
+        )
 
     async with AsyncSessionLocal() as session:
         # 1. Seed demo users

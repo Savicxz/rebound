@@ -10,7 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Query, Response, Re
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.future import select
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func, case, update
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 
@@ -53,7 +53,8 @@ from services.api.security import (
     require_operator,
     require_admin,
 )
-from services.api.events import broadcaster
+from services.api.events import broadcaster, current_revision
+from services.api.http_client import internal_client, transport_client
 from services.demo_scenarios import SCENARIOS
 from services.api.policy import (
     ALLOWLISTED_RUNBOOKS,
@@ -75,7 +76,16 @@ def ensure_utc(dt):
 async def lifespan(app: FastAPI):
     # Initialize DB schema and seed demo records
     await init_database_and_seed()
-    yield
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        token = transport_client.set(client)
+        app.state.http_client = client
+        relay = asyncio.create_task(broadcaster.relay())
+        try:
+            yield
+        finally:
+            relay.cancel()
+            await asyncio.gather(relay, return_exceptions=True)
+            transport_client.reset(token)
 
 
 app = FastAPI(
@@ -85,7 +95,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 # CORS Middleware
+@app.middleware("http")
+async def pooled_transport(request: Request, call_next):
+    token = transport_client.set(getattr(app.state, "http_client", None))
+    try:
+        return await call_next(request)
+    finally:
+        transport_client.reset(token)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -204,29 +224,60 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     healthy_count = sum(1 for s in services if s.status == "HEALTHY")
 
     # 2. Incidents
-    incidents_res = await db.execute(
-        select(Incident).order_by(Incident.detected_at.desc())
+    # Aggregate in SQL rather than materializing every historical incident.
+    duration = (
+        (func.julianday(Incident.resolved_at) - func.julianday(Incident.detected_at))
+        * 86400.0
+        if db.bind.dialect.name == "sqlite"
+        else func.extract("epoch", Incident.resolved_at - Incident.detected_at)
     )
-    all_incidents = incidents_res.scalars().all()
-
-    open_incidents = [i for i in all_incidents if i.state not in ["RESOLVED", "CLOSED"]]
-    resolved_incidents = [
-        i for i in all_incidents if i.state == "RESOLVED" and i.resolved_at is not None
-    ]
-
-    # Calculate average MTTR
-    avg_mttr = None
-    if resolved_incidents:
-        total_time = sum(
-            (ensure_utc(i.resolved_at) - ensure_utc(i.detected_at)).total_seconds()
-            for i in resolved_incidents
+    counts = (
+        await db.execute(
+            select(
+                func.count(case((Incident.state.notin_(["RESOLVED", "CLOSED"]), 1))),
+                func.count(
+                    case(
+                        (
+                            and_(
+                                Incident.state == "RESOLVED",
+                                Incident.resolved_at.is_not(None),
+                            ),
+                            1,
+                        )
+                    )
+                ),
+                func.avg(
+                    case(
+                        (
+                            and_(
+                                Incident.state == "RESOLVED",
+                                Incident.resolved_at.is_not(None),
+                            ),
+                            duration,
+                        )
+                    )
+                ),
+            )
         )
-        avg_mttr = round(total_time / len(resolved_incidents), 1)
+    ).one()
+    open_count, recovered_count, average = counts
+    avg_mttr = round(average, 1) if average is not None else None
+    active = (
+        (
+            await db.execute(
+                select(Incident)
+                .where(Incident.state.notin_(["RESOLVED", "CLOSED"]))
+                .order_by(Incident.detected_at.desc())
+                .limit(1)
+            )
+        )
+        .scalars()
+        .first()
+    )
 
     # Active Incident details
     active_incident_resp = None
-    if open_incidents:
-        active = open_incidents[0]
+    if active:
         # Load events, analysis, and runbooks
         ev_res = await db.execute(
             select(IncidentEvent)
@@ -239,6 +290,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
             select(AIAnalysis)
             .where(AIAnalysis.incident_id == active.id)
             .order_by(AIAnalysis.created_at.desc())
+            .limit(1)
         )
         latest_ai = ai_res.scalars().first()
         latest_ai_parsed = None
@@ -311,8 +363,8 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     metrics = DashboardMetrics(
         monitored_services_count=monitored_count,
         healthy_services_count=healthy_count,
-        open_incidents_count=len(open_incidents),
-        total_recovered_count=len(resolved_incidents),
+        open_incidents_count=open_count,
+        total_recovered_count=recovered_count,
         average_recovery_time_seconds=avg_mttr,
         simulation_label=settings.SIMULATION_LABEL,
         gemini_status=gemini_status,
@@ -412,10 +464,11 @@ async def list_audit_events(
 @app.get("/api/v1/demo/runtime")
 async def get_demo_runtime(current_user: User = Depends(require_operator)):
     try:
-        async with httpx.AsyncClient(timeout=3) as client:
+        async with internal_client(timeout=3) as client:
             response = await client.get(
                 f"{settings.RUNNER_CONTROL_URL}/internal/v1/runner-status",
                 headers={"X-Runner-Token": settings.RUNNER_AUTH_TOKEN},
+                timeout=3.0,
             )
             response.raise_for_status()
             data = response.json()
@@ -463,43 +516,87 @@ async def get_service(service_id: str, db: AsyncSession = Depends(get_db)):
 async def list_incidents(
     state: Optional[str] = None,
     limit: int = Query(50, ge=1, le=100),
+    include_evidence: bool = True,
+    before_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Incident).order_by(Incident.detected_at.desc()).limit(limit)
+    q = (
+        select(Incident)
+        .order_by(Incident.detected_at.desc(), Incident.id.desc())
+        .limit(limit)
+    )
     if state:
         q = q.where(Incident.state == state)
+    if before_id:
+        cursor = await db.get(Incident, before_id)
+        if cursor is None:
+            raise HTTPException(
+                status_code=404, detail="Incident cursor no longer exists"
+            )
+        q = q.where(
+            or_(
+                Incident.detected_at < cursor.detected_at,
+                and_(
+                    Incident.detected_at == cursor.detected_at, Incident.id < cursor.id
+                ),
+            )
+        )
     res = await db.execute(q)
     incidents = res.scalars().all()
 
+    # Three batched child queries, independent of the number of incidents.
+    ids = [incident.id for incident in incidents]
+    events_by_id = {key: [] for key in ids}
+    books_by_id = {key: [] for key in ids}
+    analyses_by_id = {}
+    if ids and include_evidence:
+        for event in (
+            await db.execute(
+                select(IncidentEvent)
+                .where(IncidentEvent.incident_id.in_(ids))
+                .order_by(IncidentEvent.sequence)
+            )
+        ).scalars():
+            events_by_id[event.incident_id].append(event)
+        ranked = (
+            select(
+                AIAnalysis.id,
+                func.row_number()
+                .over(
+                    partition_by=AIAnalysis.incident_id,
+                    order_by=AIAnalysis.created_at.desc(),
+                )
+                .label("rank"),
+            )
+            .where(AIAnalysis.incident_id.in_(ids))
+            .subquery()
+        )
+        for analysis in (
+            await db.execute(
+                select(AIAnalysis)
+                .join(ranked, AIAnalysis.id == ranked.c.id)
+                .where(ranked.c.rank == 1)
+            )
+        ).scalars():
+            try:
+                analyses_by_id[analysis.incident_id] = AIAnalysisResult(
+                    **json.loads(analysis.result_json)
+                )
+            except (ValueError, TypeError):
+                pass
+        for book in (
+            await db.execute(
+                select(RunbookExecution)
+                .where(RunbookExecution.incident_id.in_(ids))
+                .order_by(RunbookExecution.started_at.desc())
+            )
+        ).scalars():
+            books_by_id[book.incident_id].append(book)
     output = []
     for inc in incidents:
-        # Load events
-        ev_res = await db.execute(
-            select(IncidentEvent)
-            .where(IncidentEvent.incident_id == inc.id)
-            .order_by(IncidentEvent.sequence.asc())
-        )
-        events = ev_res.scalars().all()
-
-        # Load latest analysis
-        ai_res = await db.execute(
-            select(AIAnalysis)
-            .where(AIAnalysis.incident_id == inc.id)
-            .order_by(AIAnalysis.created_at.desc())
-        )
-        ai_rec = ai_res.scalars().first()
-        ai_parsed = None
-        if ai_rec:
-            try:
-                ai_parsed = AIAnalysisResult(**json.loads(ai_rec.result_json))
-            except Exception:
-                pass
-
-        # Load runbooks
-        rb_res = await db.execute(
-            select(RunbookExecution).where(RunbookExecution.incident_id == inc.id)
-        )
-        runbooks = rb_res.scalars().all()
+        events = events_by_id[inc.id]
+        ai_parsed = analyses_by_id.get(inc.id)
+        runbooks = books_by_id[inc.id]
 
         output.append(
             IncidentResponse(
@@ -616,15 +713,19 @@ async def events_stream(request: Request):
 
     async def event_generator():
         try:
-            # Send initial connected ping
-            yield f"data: {json.dumps({'type': 'CONNECTED', 'timestamp': get_utc_now().isoformat()})}\n\n"
+            # Every connection reconciles a committed snapshot, including missed revisions.
+            message = await current_revision()
+            revision = message["revision"]
+            yield f"id: {revision}\ndata: {json.dumps(message)}\n\n"
             while True:
                 if await request.is_disconnected():
                     break
                 try:
                     # Wait up to 15s for an event, then send heartbeat
                     message = await asyncio.wait_for(queue.get(), timeout=15.0)
-                    yield f"data: {json.dumps(message)}\n\n"
+                    if message["revision"] > revision:
+                        revision = message["revision"]
+                        yield f"id: {revision}\ndata: {json.dumps(message)}\n\n"
                 except asyncio.TimeoutError:
                     yield f"data: {json.dumps({'type': 'HEARTBEAT', 'timestamp': get_utc_now().isoformat()})}\n\n"
         finally:
@@ -634,7 +735,7 @@ async def events_stream(request: Request):
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
@@ -653,13 +754,12 @@ async def demo_scenarios():
 
 @app.post("/api/v1/demo/workflow-check")
 async def check_demo_workflow(current_user: User = Depends(require_operator)):
-    async with httpx.AsyncClient(
-        timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS
-    ) as client:
+    async with internal_client(timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS) as client:
         started = time.perf_counter()
         try:
             response = await client.get(
-                f"{settings.RUNNER_DEMO_SERVICE_URL}/api/v1/demo/workflow"
+                f"{settings.RUNNER_DEMO_SERVICE_URL}/api/v1/demo/workflow",
+                timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS,
             )
             return {
                 "checked_at": get_utc_now().isoformat(),
@@ -744,7 +844,7 @@ async def inject_demo_failure(
     )
     if not service:
         raise HTTPException(status_code=503, detail="Demo service is not configured")
-    baseline = await probe_service(service)
+    baseline = await probe_service(service, transport_client.get())
     if not baseline["success"]:
         raise HTTPException(
             status_code=409,
@@ -758,7 +858,7 @@ async def inject_demo_failure(
     headers = {"X-Runner-Token": settings.RUNNER_AUTH_TOKEN}
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with internal_client(timeout=5.0) as client:
             resp = await client.post(target_endpoint, headers=headers)
             if resp.status_code != 200:
                 raise HTTPException(
@@ -836,7 +936,7 @@ async def reset_demo_workload(current_user: User, db: AsyncSession):
     headers = {"X-Runner-Token": settings.RUNNER_AUTH_TOKEN}
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with internal_client(timeout=5.0) as client:
             response = await client.post(target_endpoint, headers=headers)
             response.raise_for_status()
     except httpx.HTTPError:
@@ -875,10 +975,6 @@ async def reset_demo_workload(current_user: User, db: AsyncSession):
         )
 
     await db.commit()
-    await broadcaster.broadcast(
-        "demo_reset",
-        {"actor": current_user.username, "timestamp": get_utc_now().isoformat()},
-    )
 
     return {
         "status": "ok",
@@ -952,12 +1048,22 @@ async def approve_runbook(
             detail="This recovery action is not supported by the target and recorded evidence",
         )
 
-    # Execute recovery runbook
-    inc.state = "RECOVERING"
-    await db.commit()
-    await broadcaster.broadcast(
-        "incident_state", {"incident_id": inc.id, "state": "RECOVERING"}
+    # Claim this review decision atomically; concurrent approvals cannot both execute.
+    claim = await db.execute(
+        update(Incident)
+        .where(
+            Incident.id == inc.id,
+            Incident.state.in_(["AWAITING_APPROVAL", "ESCALATED"]),
+        )
+        .values(state="RECOVERING")
     )
+    if not claim.rowcount:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Another decision changed this incident. Refresh before retrying.",
+        )
+    db.info["realtime_changed"] = True
 
     idempotency_key = f"admin_rec_{inc.id}_{int(time.time())}"
     runbook_exec = RunbookExecution(
@@ -981,6 +1087,7 @@ async def approve_runbook(
         actor_id=current_user.username,
     )
 
+    await db.commit()  # release event write locks before network I/O
     success, msg = await execute_runbook(
         runbook_id=req.runbook_id,
         incident_id=inc.id,
@@ -988,8 +1095,13 @@ async def approve_runbook(
         actor_id=current_user.username,
     )
 
+    await db.refresh(inc)
     runbook_exec.finished_at = get_utc_now()
     runbook_exec.runner_response_redacted = msg
+    if inc.state != "RECOVERING":
+        runbook_exec.status = "SUCCESS" if success else "FAILED"
+        await db.commit()
+        return {"status": "ok", "incident_id": inc.id, "state": inc.state}
 
     if success:
         runbook_exec.status = "SUCCESS"
@@ -1022,9 +1134,6 @@ async def approve_runbook(
         )
 
     await db.commit()
-    await broadcaster.broadcast(
-        "incident_state", {"incident_id": inc.id, "state": inc.state}
-    )
     return {"status": "ok", "incident_id": inc.id, "state": inc.state, "message": msg}
 
 
@@ -1055,9 +1164,6 @@ async def reject_runbook(
         actor_id=current_user.username,
     )
     await db.commit()
-    await broadcaster.broadcast(
-        "incident_state", {"incident_id": inc.id, "state": "ESCALATED"}
-    )
     return {"status": "ok", "incident_id": inc.id, "state": "ESCALATED"}
 
 

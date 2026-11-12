@@ -1,7 +1,7 @@
 import pytest
 import json
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 from services.api.analyzer import (
     DeterministicDemoAnalyzer,
     EnterpriseIncidentAnalyzer,
@@ -97,7 +97,7 @@ def test_sensitive_values_are_redacted():
 async def test_gemini_records_the_actual_provider_and_closes_client(monkeypatch, fails):
     from google import genai
 
-    def generate(**kwargs):
+    async def generate(**kwargs):
         if fails:
             raise RuntimeError("private failure details")
         return SimpleNamespace(
@@ -116,7 +116,10 @@ async def test_gemini_records_the_actual_provider_and_closes_client(monkeypatch,
         )
 
     client = SimpleNamespace(
-        models=SimpleNamespace(generate_content=generate), close=Mock()
+        aio=SimpleNamespace(
+            models=SimpleNamespace(generate_content=generate), aclose=AsyncMock()
+        ),
+        close=Mock(),
     )
     monkeypatch.setattr(genai, "Client", lambda **kwargs: client)
     result = await GeminiIncidentAnalyzer("test-key").analyze(
@@ -126,4 +129,5 @@ async def test_gemini_records_the_actual_provider_and_closes_client(monkeypatch,
     assert result.incident_id == "incident"
     assert result.evidence_event_ids == ["probe"]
     assert "private failure details" not in (result.fallback_reason or "")
+    client.aio.aclose.assert_awaited_once()
     client.close.assert_called_once()
