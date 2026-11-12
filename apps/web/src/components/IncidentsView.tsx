@@ -14,13 +14,22 @@ import {
   Terminal,
 } from "lucide-react";
 import { Incident } from "../types";
+import ActivityIndicator from "./ActivityIndicator";
 
 interface IncidentsViewProps {
   incidents: Incident[];
   onSelectIncident?: (id: string) => void;
+  error?: string | null;
+  loading?: boolean;
+  onRetry?: () => void;
 }
 
-export default function IncidentsView({ incidents }: IncidentsViewProps) {
+export default function IncidentsView({
+  incidents,
+  error,
+  loading = false,
+  onRetry,
+}: IncidentsViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterState, setFilterState] = useState<string>("ALL");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -77,8 +86,9 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Incident Registry
+          <p className="ui-eyebrow">Operations / history</p>
+          <h2 className="mt-2 text-3xl font-semibold text-slate-900">
+            Incidents
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Recorded service incidents and investigation history.
@@ -95,7 +105,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
               placeholder="Search by title, ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-48 sm:w-64"
+              className="bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-500 focus:outline-none focus:border-stone-300 w-48 sm:w-64"
             />
           </div>
 
@@ -103,7 +113,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
             aria-label="Filter incidents by state"
             value={filterState}
             onChange={(e) => setFilterState(e.target.value)}
-            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-stone-300"
           >
             <option value="ALL">All States</option>
             <option value="OPEN">Open</option>
@@ -120,8 +130,67 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
         </div>
       </div>
 
+      {error && (
+        <div
+          role="alert"
+          className="ui-notice flex flex-wrap items-center justify-between gap-3"
+        >
+          {error}
+          {onRetry && (
+            <button className="ui-button" onClick={onRetry}>
+              Retry history
+            </button>
+          )}
+        </div>
+      )}
+      {loading && (
+        <div role="status" className="ui-panel p-6">
+          <p className="flex items-center gap-3 text-sm text-stone-600">
+            <ActivityIndicator />
+            Loading incident history
+          </p>
+          <div className="mt-5 space-y-3">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="skeleton h-14" />
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="space-y-3 md:hidden" aria-label="Incident cards">
+        {!loading &&
+          filtered.map((inc) => (
+            <article key={inc.id} className="ui-panel p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span
+                  className={`state-tag ${inc.state === "RESOLVED" ? "state-verified" : inc.state === "CLOSED" ? "state-reset" : "state-review"}`}
+                >
+                  {inc.state.replaceAll("_", " ")}
+                </span>
+                <span className="text-xs text-stone-500">{inc.severity}</span>
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-stone-900">
+                {inc.title}
+              </h3>
+              <p className="mt-2 text-xs text-stone-500">
+                {formatTimestamp(inc.detected_at)}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                Recovery: {getDuration(inc)}
+              </p>
+              <button
+                className="ui-button mt-4 w-full"
+                onClick={() => setSelectedId(inc.id)}
+              >
+                View incident evidence
+              </button>
+            </article>
+          ))}
+        {!loading && !filtered.length && (
+          <p className="ui-notice">No incidents matching current criteria.</p>
+        )}
+      </div>
       {/* Incidents Table */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+      <div className="ui-panel hidden overflow-hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
@@ -166,10 +235,10 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
                       <span
                         className={`px-2 py-0.5 rounded text-xs font-bold ${
                           inc.severity === "CRITICAL"
-                            ? "bg-rose-500/20 text-rose-700 border border-rose-500/30"
+                            ? "bg-stone-100/20 text-stone-700 border border-stone-300/30"
                             : inc.severity === "HIGH"
-                              ? "bg-amber-500/20 text-amber-800 border border-amber-500/30"
-                              : "bg-blue-500/20 text-blue-700"
+                              ? "bg-stone-100/20 text-stone-900 border border-stone-300/30"
+                              : "bg-stone-100/20 text-stone-700"
                         }`}
                       >
                         {inc.severity}
@@ -177,17 +246,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-bold ${
-                          inc.state === "RESOLVED"
-                            ? "bg-emerald-500/20 text-emerald-700"
-                            : inc.state === "OPEN"
-                              ? "bg-rose-500/20 text-rose-700 animate-pulse"
-                              : inc.state === "AWAITING_APPROVAL"
-                                ? "bg-purple-500/20 text-purple-700"
-                                : inc.state === "VERIFYING"
-                                  ? "bg-amber-500/20 text-amber-800"
-                                  : "bg-slate-100 text-slate-700"
-                        }`}
+                        className={`state-tag ${inc.state === "RESOLVED" ? "state-verified" : inc.state === "CLOSED" ? "state-reset" : ["AWAITING_APPROVAL", "ESCALATED"].includes(inc.state) ? "state-review" : ""}`}
                       >
                         {inc.state}
                       </span>
@@ -244,7 +303,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
               <button
                 onClick={() => dialogRef.current?.close()}
                 aria-label="Close incident details"
-                className="text-slate-500 hover:text-slate-900 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                className="ui-button text-slate-500"
               >
                 Close
               </button>
@@ -292,20 +351,20 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
               )}
               {/* AI Triage Diagnosis */}
               {selectedIncident.latest_analysis ? (
-                <div className="bg-slate-50/80 border border-blue-500/30 rounded-lg p-4 space-y-2">
+                <div className="bg-slate-50/80 border border-stone-300/30 rounded-lg p-4 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-blue-700 uppercase tracking-wider text-xs flex items-center gap-1.5">
+                    <span className="font-bold text-stone-700 uppercase tracking-wider text-xs flex items-center gap-1.5">
                       <Brain className="w-3.5 h-3.5" /> AI Triage Assessment (
                       {selectedIncident.latest_analysis.provider})
                     </span>
-                    <span className="text-xs bg-blue-500/10 text-blue-700 border border-blue-500/30 px-2 py-0.5 rounded font-mono">
+                    <span className="text-xs bg-stone-100/10 text-stone-700 border border-stone-300/30 px-2 py-0.5 rounded font-mono">
                       Confidence: {selectedIncident.latest_analysis.confidence}
                     </span>
                   </div>
                   <p className="text-sm text-slate-800">
                     {selectedIncident.latest_analysis.summary}
                   </p>
-                  <p className="font-semibold text-amber-800">
+                  <p className="font-semibold text-stone-900">
                     {selectedIncident.latest_analysis.requires_human_review
                       ? "Human review required"
                       : "Recommended action remains subject to safety checks"}
@@ -330,7 +389,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
                     <span className="text-slate-500 font-medium">
                       Allowlisted Runbook Proposed:{" "}
                     </span>
-                    <code className="text-blue-700 font-mono bg-blue-950/40 px-1 py-0.5 rounded">
+                    <code className="text-stone-700 font-mono bg-stone-100/40 px-1 py-0.5 rounded">
                       {selectedIncident.latest_analysis
                         .recommended_runbook_id || "None"}
                     </code>
@@ -384,7 +443,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
                         <div className="flex justify-between text-slate-700">
                           <span>{rb.runbook_id}</span>
                           <span
-                            className={`font-bold ${rb.status === "SUCCESS" ? "text-emerald-700" : rb.status === "FAILED" ? "text-rose-700" : "text-amber-800"}`}
+                            className={`font-bold ${rb.status === "SUCCESS" ? "text-stone-700" : rb.status === "FAILED" ? "text-stone-700" : "text-stone-900"}`}
                           >
                             {rb.status}
                           </span>

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, X } from "lucide-react";
 import { DashboardData } from "../types";
 import MonitoringCharts from "./MonitoringCharts";
+import ActivityIndicator from "./ActivityIndicator";
 
 interface OverviewViewProps {
   data: DashboardData | null;
@@ -50,7 +51,7 @@ export default function OverviewView({
             : "Loading service health and recent incidents..."}
         </p>
         {!loadError && (
-          <div aria-hidden="true" className="animate-pulse space-y-4">
+          <div aria-hidden="true" className="space-y-4">
             <div className="h-24 rounded-lg bg-slate-100/60" />
             <div className="h-64 rounded-lg bg-slate-100/40" />
           </div>
@@ -120,7 +121,7 @@ export default function OverviewView({
     <div className="space-y-7">
       <header className="border-b border-stone-200 pb-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-500">
-          <span>Service watch / Service sandbox</span>
+          <span className="ui-eyebrow">Service watch / Service sandbox</span>
           {onNavigate && (
             <button
               className="min-h-11 text-stone-600 underline decoration-stone-300 underline-offset-4 hover:text-stone-950"
@@ -137,7 +138,7 @@ export default function OverviewView({
             </h1>
             <p className="mt-3 flex items-center gap-2 text-sm text-stone-500">
               <span
-                className={`h-2 w-2 rounded-full ${selectedService?.status === "HEALTHY" ? "bg-emerald-600" : "bg-amber-600"}`}
+                className={`h-2 w-2 rounded-full border border-stone-600 ${selectedService?.status === "HEALTHY" ? "bg-stone-800" : "bg-transparent"}`}
                 aria-hidden="true"
               />
               {selectedService
@@ -149,7 +150,7 @@ export default function OverviewView({
                 : "Not checked yet"}
             </p>
           </div>
-          <span className="pt-2 font-mono text-xs text-stone-400">
+          <span className="pt-2 font-mono text-xs text-stone-500">
             {selectedService?.slug}
           </span>
         </div>
@@ -175,12 +176,14 @@ export default function OverviewView({
       {incident ? (
         <section
           aria-labelledby="active-incident-title"
-          className="border-y border-stone-200 bg-amber-50/30"
+          className="ui-panel overflow-hidden"
         >
-          <div className="border-l-4 border-amber-400 p-5">
+          <div
+            className={`border-l-4 border-stone-500 p-5 ${needsReview ? "border-dashed" : ""}`}
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-medium text-amber-800">
+                <p className="text-xs font-medium text-stone-900">
                   {needsReview
                     ? "Administrator review needed"
                     : "Active incident"}
@@ -230,7 +233,7 @@ export default function OverviewView({
                 <div className="flex flex-wrap gap-2">
                   {analysis?.recommended_runbook_id && (
                     <button
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-on-primary hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={
                         currentUser.role !== "ADMIN" || !!pending || !!loadError
                       }
@@ -261,19 +264,20 @@ export default function OverviewView({
                   </button>
                 </div>
                 {actionError && (
-                  <p role="alert" className="text-sm text-rose-700">
+                  <p role="alert" className="text-sm text-stone-700">
                     {actionError}
                   </p>
                 )}
               </div>
             )}
             {incident.state === "ESCALATED" && (
-              <p className="mt-4 text-sm text-amber-800">
+              <p className="mt-4 text-sm text-stone-900">
                 Escalated for investigation. Recovery needs human attention.
               </p>
             )}
             {incident.state === "VERIFYING" && (
               <p role="status" className="mt-4 text-sm text-slate-700">
+                <ActivityIndicator className="mr-2 !h-4 !w-4 align-middle" />
                 Checking recovery:{" "}
                 {Math.min(service?.consecutive_successes || 0, 2)} of 2
                 successful health checks.
@@ -291,7 +295,7 @@ export default function OverviewView({
                     {step.at ? (
                       <CheckCircle2
                         aria-hidden="true"
-                        className="h-4 w-4 text-emerald-700"
+                        className="h-4 w-4 text-stone-700"
                       />
                     ) : (
                       <span className="flex h-4 w-4 items-center justify-center text-slate-500">
@@ -393,7 +397,7 @@ export default function OverviewView({
         <section className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
           <CheckCircle2
             aria-hidden="true"
-            className="h-4 w-4 shrink-0 text-emerald-600"
+            className="h-4 w-4 shrink-0 text-stone-700"
           />
           <h2 className="font-medium text-slate-700">No active incidents</h2>
           <p className="text-xs text-slate-500">
@@ -496,7 +500,7 @@ export default function OverviewView({
                         {item.display_name}
                       </p>
                       <p
-                        className={`flex items-center gap-2 text-xs ${item.status === "HEALTHY" ? "text-emerald-700" : "text-amber-800"}`}
+                        className={`flex items-center gap-2 text-xs ${item.status === "HEALTHY" ? "text-stone-700" : "text-stone-900"}`}
                       >
                         {item.status === "HEALTHY" ? (
                           <CheckCircle2
