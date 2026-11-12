@@ -69,7 +69,13 @@ Do not commit `.env`, database files or credentials.
 | Attendance synchronisation | HTTP 429 / twelve synthetic queued records | Bounded queue replay, same process, then verification |
 | Online assessment | Actual 800 ms delay with HTTP 200 | Latency-limit detection and human investigation |
 
-These are six profiles of one isolated workload, not six connected school services.
+All profiles use one isolated workload rather than connected school services.
+Additional infrastructure profiles cover attendance check-in unavailability,
+mesh backhaul loss, exam Wi-Fi congestion, intranet DNS failure, missing projector
+input, and auditorium amplifier protection. These return synthetic controller
+signals through the sandbox API. They do not disconnect Wi-Fi, change host DNS,
+measure real packet loss, or control physical AV equipment. Each identifies a
+suggested support team and requires human investigation; no ticket is sent.
 Potential impact text explains the school context; it does not claim measured
 student disruption. The queue is in memory and contains no personal data. Its replay
 is a demonstration, not a durable production messaging system. Slow checks exceed

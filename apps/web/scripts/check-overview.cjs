@@ -205,8 +205,25 @@ demoData.active_incident = {
 };
 assert.match(renderDemo(demoData), /Blocked for human review/);
 assert.match(renderDemo(demoData), /paused for human review/);
-assert.match(renderDemo(demoData), /School service failure lab/);
+assert.match(renderDemo(demoData), /See an incident through to its outcome/);
 assert.match(renderDemo(demoData), /Download evidence JSON/);
+const newRun = renderDemo({
+  ...demoData,
+  demo_run: {
+    id: "new-run",
+    scenario_id: "wifi_mesh",
+    service_id: "service-a",
+    injected_at: "2026-11-13T01:00:00Z",
+    incident_id: null,
+    baseline: { http_status: 200, latency_ms: 3.2 },
+    runtime_before: { child_pid: 123 },
+    failure_threshold: 3,
+    check_interval_seconds: 5,
+  },
+});
+assert.match(newRun, /Fault injected. Watching for repeated failures/);
+assert.doesNotMatch(newRun, /demo-1/);
+assert.match(newRun, /0 of 3 failed checks recorded/);
 assert.match(
   renderDemo(demoData),
   /no school systems or student records are connected/,

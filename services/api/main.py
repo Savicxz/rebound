@@ -55,8 +55,12 @@ from services.api.security import (
 )
 from services.api.events import broadcaster
 from services.demo_scenarios import SCENARIOS
-from services.api.policy import ALLOWLISTED_RUNBOOKS, execute_runbook
-from services.monitor_worker.worker import record_event
+from services.api.policy import (
+    ALLOWLISTED_RUNBOOKS,
+    execute_runbook,
+    evidence_allows_runbook,
+)
+from services.monitor_worker.worker import record_event, probe_service
 
 
 def ensure_utc(dt):
@@ -316,7 +320,39 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         last_analysis_at=latest_analysis.created_at if latest_analysis else None,
     )
 
+    demo_setting = await db.get(Setting, "demo_run")
+    demo_run = json.loads(demo_setting.json_value) if demo_setting else None
+    if demo_run:
+        run_incident = (
+            (
+                await db.execute(
+                    select(Incident)
+                    .where(
+                        Incident.service_id == demo_run["service_id"],
+                        Incident.detected_at
+                        >= datetime.fromisoformat(demo_run["injected_at"]),
+                        *(
+                            [
+                                Incident.detected_at
+                                <= datetime.fromisoformat(demo_run["reset_at"])
+                            ]
+                            if demo_run.get("reset_at")
+                            else []
+                        ),
+                    )
+                    .order_by(Incident.detected_at.asc())
+                    .limit(1)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        demo_run["incident_id"] = run_incident.id if run_incident else None
+        demo_run["failure_threshold"] = settings.CONSECUTIVE_FAILURES_TO_OPEN
+        demo_run["verification_threshold"] = settings.CONSECUTIVE_SUCCESSES_TO_RESOLVE
+        demo_run["check_interval_seconds"] = settings.HEALTH_CHECK_INTERVAL_SECONDS
     return DashboardResponse(
+        demo_run=demo_run,
         metrics=metrics,
         services=[ServiceResponse.model_validate(s) for s in services],
         active_incident=active_incident_resp,
@@ -615,11 +651,49 @@ async def demo_scenarios():
     ]
 
 
+@app.post("/api/v1/demo/workflow-check")
+async def check_demo_workflow(current_user: User = Depends(require_operator)):
+    async with httpx.AsyncClient(
+        timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS
+    ) as client:
+        started = time.perf_counter()
+        try:
+            response = await client.get(
+                f"{settings.RUNNER_DEMO_SERVICE_URL}/api/v1/demo/workflow"
+            )
+            return {
+                "checked_at": get_utc_now().isoformat(),
+                "http_status": response.status_code,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+                "response": response.json(),
+                "simulated": True,
+            }
+        except (httpx.HTTPError, ValueError):
+            return {
+                "checked_at": get_utc_now().isoformat(),
+                "http_status": None,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+                "response": {"message": "The synthetic workflow did not respond."},
+                "simulated": True,
+            }
+
+
+# One API process owns the local demo; multiple API workers would require a database lock.
+demo_control_lock = asyncio.Lock()
+
+
 @app.post("/api/v1/demo/failures")
 async def trigger_demo_failure(
     req: DemoFailureRequest,
     current_user: User = Depends(require_operator),
     db: AsyncSession = Depends(get_db),
+):
+    async with demo_control_lock:
+        return await inject_demo_failure(req, current_user, db)
+
+
+async def inject_demo_failure(
+    req: DemoFailureRequest, current_user: User, db: AsyncSession
 ):
     """
     Simulates a genuine service fault in the isolated sandbox:
@@ -641,6 +715,43 @@ async def trigger_demo_failure(
             status_code=409,
             detail="Reset or finish the active incident before starting another scenario",
         )
+    previous = await db.get(Setting, "demo_run")
+    if previous:
+        previous_run = json.loads(previous.json_value)
+        if not previous_run.get("reset_at"):
+            prior_incident = (
+                (
+                    await db.execute(
+                        select(Incident).where(
+                            Incident.service_id == previous_run["service_id"],
+                            Incident.detected_at
+                            >= datetime.fromisoformat(previous_run["injected_at"]),
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if not prior_incident or prior_incident.state not in ("RESOLVED", "CLOSED"):
+                raise HTTPException(
+                    status_code=409,
+                    detail="A demonstration is already running. Wait for its result or reset the sandbox.",
+                )
+    service = (
+        (await db.execute(select(Service).where(Service.slug == "demo-service")))
+        .scalars()
+        .first()
+    )
+    if not service:
+        raise HTTPException(status_code=503, detail="Demo service is not configured")
+    baseline = await probe_service(service)
+    if not baseline["success"]:
+        raise HTTPException(
+            status_code=409,
+            detail="A healthy baseline could not be confirmed. Reset the sandbox and check that the monitor is running.",
+        )
+    runtime_before = await get_demo_runtime(current_user)
+    injected_at = get_utc_now()
     target_endpoint = (
         f"{settings.RUNNER_CONTROL_URL}/internal/v1/scenario/{scenario_type}"
     )
@@ -673,6 +784,30 @@ async def trigger_demo_failure(
         service.status = "SUSPECTED"
         service.consecutive_failures = 0
         service.consecutive_successes = 0
+        run_record = {
+            "id": generate_uuid(),
+            "scenario_id": req.type,
+            "service_id": service.id,
+            "injected_at": injected_at.isoformat(),
+            "baseline": {
+                **baseline,
+                "observed_at": baseline["observed_at"].isoformat(),
+            },
+            "runtime_before": runtime_before,
+            "initiated_by": current_user.username,
+        }
+        if previous:
+            previous.json_value = json.dumps(run_record)
+            previous.updated_at = get_utc_now()
+            previous.updated_by = current_user.username
+        else:
+            db.add(
+                Setting(
+                    key="demo_run",
+                    json_value=json.dumps(run_record),
+                    updated_by=current_user.username,
+                )
+            )
         await db.commit()
     return {
         "status": "ok",
@@ -687,6 +822,11 @@ async def trigger_demo_failure(
 async def reset_demo(
     current_user: User = Depends(require_operator), db: AsyncSession = Depends(get_db)
 ):
+    async with demo_control_lock:
+        return await reset_demo_workload(current_user, db)
+
+
+async def reset_demo_workload(current_user: User, db: AsyncSession):
     """
     Resets the isolated supervisor child process to normal mode,
     clears open incidents, and resets consecutive probe counters.
@@ -706,6 +846,11 @@ async def reset_demo(
         )
 
     # 2. Reset services in DB
+    run_setting = await db.get(Setting, "demo_run")
+    if run_setting:
+        run_data = json.loads(run_setting.json_value)
+        run_data["reset_at"] = get_utc_now().isoformat()
+        run_setting.json_value = json.dumps(run_data)
     svc_res = await db.execute(select(Service))
     services = svc_res.scalars().all()
     for s in services:
@@ -791,6 +936,20 @@ async def approve_runbook(
     if req.runbook_id not in ALLOWLISTED_RUNBOOKS:
         raise HTTPException(
             status_code=400, detail=f"Runbook '{req.runbook_id}' is not allowlisted."
+        )
+    if inc.state not in ("AWAITING_APPROVAL", "ESCALATED"):
+        raise HTTPException(
+            status_code=409, detail="This incident is not waiting for a review decision"
+        )
+    svc = await db.get(Service, inc.service_id)
+    if (
+        not svc
+        or svc.slug not in ALLOWLISTED_RUNBOOKS[req.runbook_id]["allowed_targets"]
+        or not evidence_allows_runbook(req.runbook_id, inc.last_error)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="This recovery action is not supported by the target and recorded evidence",
         )
 
     # Execute recovery runbook
@@ -880,6 +1039,11 @@ async def reject_runbook(
     inc = res.scalars().first()
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found")
+
+    if inc.state not in ("AWAITING_APPROVAL", "ESCALATED"):
+        raise HTTPException(
+            status_code=409, detail="This incident is not waiting for a review decision"
+        )
 
     inc.state = "ESCALATED"
     await record_event(

@@ -40,6 +40,30 @@ class PolicyDecision:
         self.reason = reason
 
 
+def evidence_allows_runbook(runbook_id: str, last_error: str | None) -> bool:
+    err = (last_error or "").lower()
+    if any(
+        marker in err
+        for marker in (
+            "degraded",
+            "pool",
+            "deadlock",
+            "http_500",
+            '"error_type":"database',
+        )
+    ):
+        return False
+    return (
+        runbook_id == "REPLAY_DEMO_ATTENDANCE_QUEUE"
+        and "attendance_queue_backlog" in err
+    ) or (
+        runbook_id == "RESTART_DEMO_CHILD_SERVICE"
+        and any(
+            marker in err for marker in ("connection refused", "timed out", "timeout")
+        )
+    )
+
+
 def evaluate_incident_policy(
     incident: Incident, service: Service, analysis: AIAnalysisResult
 ) -> PolicyDecision:
@@ -103,15 +127,7 @@ def evaluate_incident_policy(
 
     # 5. Evaluate recommended runbook against rigid allowlist
     rec_runbook = analysis.recommended_runbook_id
-    evidence_matches = (
-        rec_runbook == "REPLAY_DEMO_ATTENDANCE_QUEUE"
-        and "attendance_queue_backlog" in err
-    ) or (
-        rec_runbook == "RESTART_DEMO_CHILD_SERVICE"
-        and any(
-            marker in err for marker in ("connection refused", "timed out", "timeout")
-        )
-    )
+    evidence_matches = evidence_allows_runbook(rec_runbook, incident.last_error)
     if not evidence_matches:
         return PolicyDecision(
             False,

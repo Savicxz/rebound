@@ -75,12 +75,9 @@ class DeterministicDemoAnalyzer(IncidentAnalyzer):
         err = (last_error or "").lower()
         evidence_ids = [str(p.get("id")) for p in recent_probes if p.get("id")]
 
-        for scenario_id in (
-            "attendance_backlog",
-            "auth_outage",
-            "storage_full",
-            "slow_assessment",
-        ):
+        for scenario_id in SCENARIOS:
+            if scenario_id in ("crash", "degraded"):
+                continue
             scenario = SCENARIOS[scenario_id]
             if scenario["error_code"].lower() in err:
                 return AIAnalysisResult(
@@ -195,6 +192,7 @@ Valid Allowlisted Runbooks (ONLY ONE MAY BE RECOMMENDED):
 - "RESTART_DEMO_CHILD_SERVICE": Use ONLY if the service process is completely stopped/unreachable (connection refused/timeout).
 - "REPLAY_DEMO_ATTENDANCE_QUEUE": Use ONLY for explicit ATTENDANCE_QUEUE_BACKLOG evidence. It processes a bounded queue of synthetic records without restarting.
 - null: Unknown faults, database contention/HTTP 500, identity dependency/HTTP 503, upload quota/HTTP 507, or slow HTTP 200 responses above the latency limit. These require human review.
+- null: Attendance dependency outages, mesh backhaul loss, exam Wi-Fi congestion, intranet DNS failures, missing projector input, and amplifier protection. These model infrastructure or physical equipment; require human review and never recommend restarting the demo process as a fix.
 
 CRITICAL SAFETY RULES:
 - You CANNOT generate shell commands or arbitrary instructions.

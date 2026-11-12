@@ -24,8 +24,8 @@ def setup_teardown():
     proc = subprocess.Popen(
         [sys.executable, supervisor_script],
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     # Wait for supervisor and child service to be ready
@@ -262,6 +262,12 @@ async def test_end_to_end_scenario_b_degraded_escalation():
         ("storage_full", 507),
         ("slow_assessment", 200),
         ("attendance_backlog", 429),
+        ("attendance_down", 503),
+        ("wifi_mesh", 503),
+        ("exam_wifi", 503),
+        ("intranet_dns", 503),
+        ("projector_signal", 503),
+        ("auditorium_audio", 503),
     ],
 )
 async def test_school_workflows_produce_real_evidence(scenario, expected_http):
@@ -291,9 +297,25 @@ async def test_school_workflows_produce_real_evidence(scenario, expected_http):
         probes = dashboard["recent_observations"]
         assert probes[0]["http_status"] == expected_http
         assert probes[0]["success"] is False
-        assert scenario.split("_")[0].lower() in dashboard["services"][0][
-            "display_name"
-        ].lower() or scenario in ("auth_outage", "storage_full", "slow_assessment")
+        assert "(demo)" in dashboard["services"][0]["display_name"]
+        assert dashboard["demo_run"]["scenario_id"] == scenario
+        assert dashboard["demo_run"]["incident_id"] == incident["id"]
+        assert dashboard["demo_run"]["baseline"]["success"] is True
+        if scenario in (
+            "attendance_down",
+            "wifi_mesh",
+            "exam_wifi",
+            "intranet_dns",
+            "projector_signal",
+            "auditorium_audio",
+        ):
+            receipt = (
+                await client.post("/api/v1/demo/workflow-check", headers=headers)
+            ).json()
+            assert receipt["http_status"] == 503
+            assert receipt["response"]["signals"]
+            assert receipt["response"]["owner"]
+            assert receipt["response"]["simulated"] is True
         if scenario == "attendance_backlog":
             assert incident["state"] == "VERIFYING"
             assert (

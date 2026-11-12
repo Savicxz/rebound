@@ -47,7 +47,7 @@ export default function OverviewView({
         <p role="status" className="text-sm text-slate-500">
           {loadError
             ? "Service data is unavailable. Use Refresh data to retry."
-            : "Loading service health and recent incidentsâ€¦"}
+            : "Loading service health and recent incidents..."}
         </p>
         {!loadError && (
           <div aria-hidden="true" className="animate-pulse space-y-4">
@@ -103,7 +103,7 @@ export default function OverviewView({
     try {
       await (kind === "approve" ? onApproveRunbook : onRejectRunbook)(
         incident.id,
-        "RESTART_DEMO_CHILD_SERVICE",
+        analysis?.recommended_runbook_id || "NONE",
       );
     } catch (error) {
       setActionError(
@@ -192,7 +192,7 @@ export default function OverviewView({
                   {incident.title}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Detected {time(incident.detected_at)} Â·{" "}
+                  Detected {time(incident.detected_at)} /{" "}
                   {readable(incident.state)}
                 </p>
               </div>
@@ -223,23 +223,32 @@ export default function OverviewView({
                 </p>
                 {currentUser.role !== "ADMIN" && (
                   <p className="text-xs text-slate-500">
-                    Switch to the Admin demo role in the header to approve or
-                    reject recovery.
+                    Start a local demo session or sign in with review access to
+                    record your decision.
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={
-                      currentUser.role !== "ADMIN" || !!pending || !!loadError
-                    }
-                    onClick={() => act("approve")}
-                  >
-                    <Check aria-hidden="true" className="h-4 w-4" />
-                    {pending === "approve"
-                      ? "Approvingâ€¦"
-                      : "Approve demo restart"}
-                  </button>
+                  {analysis?.recommended_runbook_id && (
+                    <button
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={
+                        currentUser.role !== "ADMIN" || !!pending || !!loadError
+                      }
+                      onClick={() => act("approve")}
+                    >
+                      <Check aria-hidden="true" className="h-4 w-4" />
+                      {pending === "approve"
+                        ? "Approving..."
+                        : "Approve demo restart"}
+                    </button>
+                  )}
+                  {!analysis?.recommended_runbook_id && (
+                    <p className="py-2 text-sm text-slate-600">
+                      No recovery action is approved for this fault. Review the
+                      evidence and keep it escalated, or reset the
+                      demonstration.
+                    </p>
+                  )}
                   <button
                     className={button}
                     disabled={
@@ -248,7 +257,7 @@ export default function OverviewView({
                     onClick={() => act("reject")}
                   >
                     <X aria-hidden="true" className="h-4 w-4" />
-                    {pending === "reject" ? "Rejectingâ€¦" : "Keep escalated"}
+                    {pending === "reject" ? "Rejecting..." : "Keep escalated"}
                   </button>
                 </div>
                 {actionError && (
@@ -375,7 +384,7 @@ export default function OverviewView({
                 </div>
               )}
               <p className="break-all font-mono text-xs text-slate-500">
-                Incident: {incident.id} Â· {incident.fingerprint}
+                Incident: {incident.id} / {incident.fingerprint}
               </p>
             </div>
           </details>
@@ -443,7 +452,7 @@ export default function OverviewView({
                       {event.public_message}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {readable(event.event_type)} Â·{" "}
+                      {readable(event.event_type)} /{" "}
                       {readable(event.actor_type)}
                     </p>
                   </div>
@@ -543,7 +552,7 @@ export default function OverviewView({
                 [
                   "Average recovery time",
                   metrics.average_recovery_time_seconds == null
-                    ? "â€”"
+                    ? "Unavailable"
                     : `${Math.round(metrics.average_recovery_time_seconds)}s`,
                   `${metrics.total_recovered_count || 0} verified recoveries`,
                 ],

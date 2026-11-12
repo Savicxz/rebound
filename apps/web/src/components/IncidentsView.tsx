@@ -42,7 +42,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
   });
 
   const formatTimestamp = (ts?: string | null) => {
-    if (!ts) return "â€”";
+    if (!ts) return "Unavailable";
     try {
       const d = new Date(ts);
       return (
@@ -69,7 +69,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
         ? `${diffSec}s`
         : "Unavailable";
     } catch {
-      return "â€”";
+      return "Unavailable";
     }
   };
 
@@ -237,7 +237,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
                   {selectedIncident.title}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Detected: {formatTimestamp(selectedIncident.detected_at)} â€¢
+                  Detected: {formatTimestamp(selectedIncident.detected_at)} /
                   State: {selectedIncident.state}
                 </p>
               </div>
@@ -246,7 +246,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
                 aria-label="Close incident details"
                 className="text-slate-500 hover:text-slate-900 p-1 rounded-lg hover:bg-slate-100 transition-colors"
               >
-                âœ•
+                Close
               </button>
             </div>
 
@@ -390,7 +390,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
                           </span>
                         </div>
                         <p className="mt-2 text-slate-500">
-                          Started: {formatTimestamp(rb.started_at)} Â· Finished:{" "}
+                          Started: {formatTimestamp(rb.started_at)} / Finished:{" "}
                           {formatTimestamp(rb.finished_at)}
                         </p>
                         <p className="mt-1 break-all text-slate-500">
@@ -443,7 +443,7 @@ export default function IncidentsView({ incidents }: IncidentsViewProps) {
                         </div>
                         <div className="text-slate-700">{e.public_message}</div>
                         <div className="mt-1 text-slate-500">
-                          {e.actor_type} Â· {e.actor_id}
+                          {e.actor_type} / {e.actor_id}
                         </div>
                       </div>
                     ))}

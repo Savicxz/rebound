@@ -84,11 +84,18 @@ export default function DemoEvidence({
   const [incidentError, setIncidentError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
-  const active = data?.active_incident;
-  const latestId =
-    active?.id ||
-    [...(data?.recent_events || [])].sort((a, b) => b.at.localeCompare(a.at))[0]
-      ?.incident_id;
+  const run = data?.demo_run;
+  const active = run
+    ? data?.active_incident?.id === run.incident_id
+      ? data.active_incident
+      : null
+    : data?.active_incident;
+  const latestId = run
+    ? run.incident_id
+    : active?.id ||
+      [...(data?.recent_events || [])].sort((a, b) =>
+        b.at.localeCompare(a.at),
+      )[0]?.incident_id;
   const lastEventId = data?.recent_events?.[0]?.id;
   useEffect(() => {
     if (!latestId || active) return;
@@ -148,24 +155,102 @@ export default function DemoEvidence({
     data?.services.find((item) => item.id === incident?.service_id) ||
     data?.services[0];
   const checks = [...(data?.recent_observations || [])]
-    .filter((check) => check.service_id === service?.id)
+    .filter(
+      (check) =>
+        check.service_id === service?.id &&
+        (!run ||
+          new Date(
+            /Z$/.test(check.observed_at)
+              ? check.observed_at
+              : `${check.observed_at}Z`,
+          ).getTime() >= new Date(run.injected_at).getTime()),
+    )
     .sort((a, b) => b.observed_at.localeCompare(a.observed_at))
     .slice(0, 12);
   const latest = checks[0];
   const steps = evidenceSteps(incident);
+  const threshold = run?.failure_threshold || 3;
+  const pendingDetection = !!run && !run.reset_at && !incident;
+  const resultTitle =
+    incident?.state === "RESOLVED"
+      ? "Recovery verified"
+      : run?.reset_at || incident?.state === "CLOSED"
+        ? "Run ended by reset"
+        : ["AWAITING_APPROVAL", "ESCALATED"].includes(incident?.state || "")
+          ? "Stopped for human investigation"
+          : incident?.state === "VERIFYING"
+            ? "Recovery executed. Checking the result."
+            : pendingDetection
+              ? "Fault injected. Watching for repeated failures."
+              : incident
+                ? "Investigation in progress"
+                : "Ready for a demonstration";
 
   return (
     <section
       className="space-y-5 border-y border-stone-200 py-6"
       aria-labelledby="demo-evidence-title"
     >
+      <div
+        role="status"
+        className={`border-l-4 p-5 ${incident?.state === "RESOLVED" ? "border-emerald-600 bg-emerald-500/10" : pendingDetection || incident ? "border-amber-600 bg-amber-500/10" : "border-stone-300 bg-stone-50"}`}
+      >
+        <p className="text-xs font-medium uppercase tracking-wider text-stone-500">
+          Current demonstration
+        </p>
+        <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-900">
+          {resultTitle}
+        </h3>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-stone-700">
+          {pendingDetection
+            ? `${Math.min(service?.consecutive_failures || 0, threshold)} of ${threshold} failed checks recorded. The monitor runs every ${run.check_interval_seconds} seconds; an incident opens only after the threshold is met.`
+            : incident?.state === "RESOLVED"
+              ? "The recovery action completed and independent successful probes confirmed the service is available again."
+              : run?.reset_at
+                ? "This run was reset. Administrative closure does not count as a verified recovery."
+                : incident?.latest_analysis?.reasoning_summary ||
+                  (incident
+                    ? "Inspect the recorded investigation below. Recovery has not been independently verified."
+                    : null) ||
+                  "Choose a scenario below. Rebound will capture a healthy baseline before introducing the fault."}
+        </p>
+        {run && (
+          <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-stone-500">Before the fault</dt>
+              <dd className="mt-1 font-mono text-stone-800">
+                HTTP {run.baseline.http_status} /{" "}
+                {run.baseline.latency_ms.toFixed(1)} ms
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-500">Process comparison</dt>
+              <dd className="mt-1 font-mono text-stone-800">
+                {run.runtime_before.child_pid ?? "Unknown"} →{" "}
+                {runtime?.child_pid ??
+                  (runtime && !runtime.child_running
+                    ? "Stopped"
+                    : "Awaiting observation")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-500">Verified recovery time</dt>
+              <dd className="mt-1 font-mono text-stone-800">
+                {incident?.resolved_at
+                  ? `${Math.max(0, Math.round((new Date(incident.resolved_at).getTime() - new Date(incident.detected_at).getTime()) / 1000))} seconds`
+                  : "Not verified"}
+              </dd>
+            </div>
+          </dl>
+        )}
+      </div>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2
             id="demo-evidence-title"
             className="text-lg font-semibold text-stone-900"
           >
-            Live execution evidence
+            Detection, decision and recovery
           </h2>
           <p className="mt-1 text-xs text-stone-500">
             Server records and supervisor observations. No timed progress
@@ -184,6 +269,7 @@ export default function DemoEvidence({
               exported_at: new Date().toISOString(),
               simulated: true,
               incident,
+              demo_run: run,
               recent_probe_sample: checks,
               runtime_observation: runtime,
               runtime_warning: runtimeError,
@@ -210,56 +296,61 @@ export default function DemoEvidence({
           {runtimeError || incidentError}
         </p>
       )}
-      <dl className="grid gap-4 rounded-md border border-stone-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <dt className="text-xs text-stone-500">Child process</dt>
-          <dd className="mt-1 font-mono text-sm text-stone-800">
-            {runtime
-              ? runtime.child_running
-                ? `Running / PID ${runtime.child_pid ?? "unknown"}`
-                : "Stopped"
-              : token
-                ? "Awaiting supervisor response"
-                : "Sign in to inspect runner"}
-          </dd>
-          <p className="mt-1 text-xs text-stone-500">
-            Observed {clock(runtime?.observed_at)} MYT
-          </p>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-500">Supervisor restarts</dt>
-          <dd className="mt-1 font-mono text-sm text-stone-800">
-            {runtime?.restart_count ?? "Unverified"}
-          </dd>
-          <p className="mt-1 text-xs text-stone-500">
-            Since supervisor startup; mode: {runtime?.mode || "unverified"}
-          </p>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-500">Latest health probe</dt>
-          <dd className="mt-1 font-mono text-sm text-stone-800">
-            {latest
-              ? `${latest.success ? "PASS" : "FAIL"} / ${latest.http_status ?? "No HTTP response"}`
-              : "No probe recorded"}
-          </dd>
-          <p className="mt-1 text-xs text-stone-500">
-            {latest
-              ? `${latest.latency_ms.toFixed(1)} ms at ${clock(latest.observed_at)} MYT`
-              : "Waiting for monitor evidence"}
-          </p>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-500">Consecutive checks</dt>
-          <dd className="mt-1 font-mono text-sm text-stone-800">
-            {service
-              ? `${service.consecutive_failures} failed / ${service.consecutive_successes} passed`
-              : "No service loaded"}
-          </dd>
-          <p className="mt-1 text-xs text-stone-500">
-            Counters reported by the monitor
-          </p>
-        </div>
-      </dl>
+      <details className="border-t border-stone-200 pt-2">
+        <summary className="cursor-pointer py-2 text-sm text-stone-700">
+          Inspect live process and monitor counters
+        </summary>
+        <dl className="mt-3 grid gap-4 rounded-md border border-stone-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="text-xs text-stone-500">Child process</dt>
+            <dd className="mt-1 font-mono text-sm text-stone-800">
+              {runtime
+                ? runtime.child_running
+                  ? `Running / PID ${runtime.child_pid ?? "unknown"}`
+                  : "Stopped"
+                : token
+                  ? "Awaiting supervisor response"
+                  : "Sign in to inspect runner"}
+            </dd>
+            <p className="mt-1 text-xs text-stone-500">
+              Observed {clock(runtime?.observed_at)} MYT
+            </p>
+          </div>
+          <div>
+            <dt className="text-xs text-stone-500">Supervisor restarts</dt>
+            <dd className="mt-1 font-mono text-sm text-stone-800">
+              {runtime?.restart_count ?? "Unverified"}
+            </dd>
+            <p className="mt-1 text-xs text-stone-500">
+              Since supervisor startup; mode: {runtime?.mode || "unverified"}
+            </p>
+          </div>
+          <div>
+            <dt className="text-xs text-stone-500">Latest health probe</dt>
+            <dd className="mt-1 font-mono text-sm text-stone-800">
+              {latest
+                ? `${latest.success ? "PASS" : "FAIL"} / ${latest.http_status ?? "No HTTP response"}`
+                : "No probe recorded"}
+            </dd>
+            <p className="mt-1 text-xs text-stone-500">
+              {latest
+                ? `${latest.latency_ms.toFixed(1)} ms at ${clock(latest.observed_at)} MYT`
+                : "Waiting for monitor evidence"}
+            </p>
+          </div>
+          <div>
+            <dt className="text-xs text-stone-500">Consecutive checks</dt>
+            <dd className="mt-1 font-mono text-sm text-stone-800">
+              {service
+                ? `${service.consecutive_failures} failed / ${service.consecutive_successes} passed`
+                : "No service loaded"}
+            </dd>
+            <p className="mt-1 text-xs text-stone-500">
+              Counters reported by the monitor
+            </p>
+          </div>
+        </dl>
+      </details>
       <ol
         className="grid gap-3 md:grid-cols-5"
         aria-label="Recorded incident workflow"
@@ -298,7 +389,7 @@ export default function DemoEvidence({
           </p>
         </details>
       )}
-      <details className="border-t border-stone-200 pt-2" open>
+      <details className="border-t border-stone-200 pt-2">
         <summary className="cursor-pointer py-2 text-sm font-medium text-stone-700">
           Recent probe receipts ({checks.length})
         </summary>

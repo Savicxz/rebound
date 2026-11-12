@@ -159,6 +159,7 @@ class DashboardMetrics(BaseModel):
 
 
 class DashboardResponse(BaseModel):
+    demo_run: Optional[dict] = None
     metrics: DashboardMetrics
     services: List[ServiceResponse]
     active_incident: Optional[IncidentResponse] = None
@@ -176,6 +177,12 @@ class DemoFailureRequest(BaseModel):
         "storage_full",
         "attendance_backlog",
         "slow_assessment",
+        "attendance_down",
+        "wifi_mesh",
+        "exam_wifi",
+        "intranet_dns",
+        "projector_signal",
+        "auditorium_audio",
     ]
 
 

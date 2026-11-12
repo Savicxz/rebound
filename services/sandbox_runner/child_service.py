@@ -38,6 +38,8 @@ def health(response: Response):
             else "dependency_failure",
             "error_type": scenario["error_code"],
             "message": scenario["fault"],
+            "signals": scenario.get("signals", []),
+            "owner": scenario.get("owner"),
             "queued_records": len(attendance_queue),
             "simulated": True,
         }
@@ -68,6 +70,23 @@ def info():
         "simulated": True,
         "mode": current_mode,
         "notice": "Synthetic workload for incident recovery tests. No production systems are connected.",
+    }
+
+
+@app.get("/api/v1/demo/workflow")
+def workflow(response: Response):
+    result = health(response)
+    if response.status_code and response.status_code >= 400:
+        return result
+    return {
+        "simulated": True,
+        "status": "available",
+        "mode": current_mode,
+        "message": "Synthetic school service request completed.",
+        "attendance": {
+            "pending": len(attendance_queue),
+            "processed": len(processed_attendance),
+        },
     }
 
 

@@ -38,6 +38,16 @@ No cloud IAM roles are needed. Each school profile shares one isolated workload.
 5. Download evidence JSON for a completed incident. Reset closes review incidents
    administratively; it does not count them as verified recovery.
 
+## Network and AV handoff
+
+Select mesh uplink loss, exam Wi-Fi congestion, intranet DNS, projector input,
+auditorium audio, or attendance check-in unavailability. Read the modelled signal
+path, inject the fault, then use **Send test request** to retrieve the synthetic
+controller response. The monitor opens an incident and stops for human review.
+Show the suggested responsible team and next steps. No ticket is actually sent.
+The network and equipment signals are simulated; the HTTP request and incident
+records are real. No Wi-Fi adapter, DNS settings, projector or amplifier is changed.
+
 Finish with the architecture, private runner boundary, known limits and the separate
 Gemini Enterprise integration plan. Do not describe unimplemented connectors or
 local notification records as working integrations.

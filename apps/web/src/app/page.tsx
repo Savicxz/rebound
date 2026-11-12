@@ -281,17 +281,17 @@ export default function Home() {
         <div className="mb-7 flex flex-wrap items-center justify-between gap-3 pb-2 text-xs text-slate-500">
           <p role="status">
             {dashboardError
-              ? "Updates unavailable Â· Displayed data may be out of date"
+              ? "Updates unavailable  /  Displayed data may be out of date"
               : lastUpdated
                 ? `Last updated ${new Date(lastUpdated).toLocaleTimeString("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour12: false })} MYT`
-                : "Connecting to service dataâ€¦"}
+                : "Connecting to service data..."}
           </p>
           <button
             disabled={refreshing}
             onClick={fetchDashboard}
             className="min-h-11 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {refreshing ? "Refreshingâ€¦" : "Refresh data"}
+            {refreshing ? "Refreshing..." : "Refresh data"}
           </button>
         </div>
         {dashboardError && (
@@ -342,8 +342,8 @@ export default function Home() {
       {/* Minimal Footer */}
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Rebound Â· Hackathon prototype</span>
-          <span>Simulated services only Â· No production connection</span>
+          <span>Rebound / Hackathon prototype</span>
+          <span>Simulated services only / No production connection</span>
         </div>
       </footer>
     </div>

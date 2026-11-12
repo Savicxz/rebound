@@ -110,12 +110,32 @@ export interface DashboardMetrics {
 }
 
 export interface DashboardData {
+  demo_run?: DemoRun | null;
   metrics: DashboardMetrics;
   services: Service[];
   active_incident?: Incident | null;
   recent_events: IncidentEvent[];
   recent_notifications: NotificationItem[];
   recent_observations?: HealthObservation[];
+}
+
+export interface DemoRun {
+  id: string;
+  scenario_id: DemoScenarioId;
+  service_id: string;
+  injected_at: string;
+  reset_at?: string;
+  incident_id?: string | null;
+  baseline: {
+    success: boolean;
+    latency_ms: number;
+    http_status: number;
+    observed_at: string;
+  };
+  runtime_before: { child_pid: number | null; restart_count: number | null };
+  failure_threshold: number;
+  verification_threshold: number;
+  check_interval_seconds: number;
 }
 
 export interface HealthObservation {
@@ -140,4 +160,12 @@ export type DemoScenarioId =
   | "auth_outage"
   | "storage_full"
   | "attendance_backlog"
-  | "slow_assessment";
+  | "slow_assessment"
+  | InfrastructureScenarioId;
+export type InfrastructureScenarioId =
+  | "attendance_down"
+  | "wifi_mesh"
+  | "exam_wifi"
+  | "intranet_dns"
+  | "projector_signal"
+  | "auditorium_audio";
