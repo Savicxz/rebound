@@ -154,3 +154,6 @@ See [security boundaries](docs/SECURITY.md), [architecture](docs/ARCHITECTURE.md
 
 Audit records are application event history, not a cryptographically tamper-proof
 log. Notifications are local demo records, not proof of email delivery.
+
+
+For a prebuilt web demo, run `npm run build:production` in `apps/web`, then `python start.py --production-web` from the repository root. This uses an isolated standalone build; `python start.py` continues to start the development server. See [performance and reliability notes](docs/performance/README.md) for measurements, event-delivery semantics and limits.

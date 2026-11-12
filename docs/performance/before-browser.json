@@ -1,0 +1,31 @@
+{
+  "label": "before",
+  "elapsed_ms": 50286,
+  "dashboardRequests": 10,
+  "incidentRequests": 0,
+  "maximumConcurrent": 1,
+  "commit_return_to_visible_ms": 4942,
+  "runs": [
+    {
+      "injection_to_detection_ms": 11439,
+      "detection_to_analysis_record_ms": 24,
+      "execution_start_to_verified_ms": 5189,
+      "resolution_record_to_visible_ms": 4970
+    },
+    {
+      "injection_to_detection_ms": 11344,
+      "detection_to_analysis_record_ms": 18,
+      "execution_start_to_verified_ms": 5181,
+      "resolution_record_to_visible_ms": 394
+    }
+  ],
+  "rendering": {
+    "frame_p95_ms": 16.700000000004366,
+    "longest_frame_ms": 116.59999999999997,
+    "long_tasks": 1,
+    "longest_task_ms": 133,
+    "committed_sse_messages": 0,
+    "repeated_locale_1000_ms": 35.5,
+    "reused_formatter_1000_ms": 1.300000000745058
+  }
+}
