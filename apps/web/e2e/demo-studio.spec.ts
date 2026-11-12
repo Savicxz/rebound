@@ -54,8 +54,22 @@ test("learning portal: onboarding, failure, recovery, print, JSON and replay", a
     if (response.url().endsWith("/api/v1/demo/workflow-check") && response.ok())
       responses.push(await response.json());
   });
+  const action = await page
+    .getByRole("button", { name: "Open course materials", exact: true })
+    .boundingBox();
+  expect(action!.y + action!.height).toBeLessThan(768);
+  await page.screenshot({
+    path: path.join(screenshots, "studio-initial-1366.png"),
+  });
   await screenshot(page, "studio-ready.png");
   await run(page, "The learning portal goes offline");
+  await expect(
+    page.getByRole("heading", {
+      name: "Waiting for health checks",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await screenshot(page, "studio-active-detection.png");
   await expect
     .poll(() => responses.some((response) => response.http_status === null))
     .toBeTruthy();
@@ -92,6 +106,9 @@ test("learning portal: onboarding, failure, recovery, print, JSON and replay", a
     "not a live Gemini call",
   );
   await screenshot(page, "studio-crash-verified.png");
+  await expect(page.getByRole("region", { name: "Run outcome" })).toContainText(
+    "Try human-review scenario",
+  );
   const downloadPromise = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Download evidence JSON", exact: true })
@@ -148,7 +165,7 @@ test("database contention: real HTTP 500, safe human review, dark mode and reset
   await run(page, "Registration hits database contention");
   await expect(
     page.getByRole("heading", {
-      name: "Unsafe restart prevented.",
+      name: "Automatic recovery safely blocked",
       exact: true,
     }),
   ).toBeVisible();
@@ -161,12 +178,23 @@ test("database contention: real HTTP 500, safe human review, dark mode and reset
   expect(runtime.child_pid).toBe(dashboard.demo_run.runtime_before.child_pid);
   await expect(
     page.locator('[aria-label="Before failure and after measurements"]'),
-  ).toContainText("Not observed");
+  ).toContainText("Current service");
   await page
     .getByRole("button", { name: "Switch to dark mode", exact: true })
     .click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await screenshot(page, "studio-human-review-dark.png");
+  await page
+    .getByRole("button", { name: "Try automatic recovery", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "The learning portal goes offline",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(
+    (await (await page.request.get("/api/v1/dashboard")).json()).demo_run.id,
+  ).toBe(dashboard.demo_run.id);
+
   await page
     .getByRole("button", { name: "Reset sandbox", exact: true })
     .click();

@@ -134,6 +134,7 @@ export default function DemoEvidence({
   compact = false,
   onIncidentChange,
   studentReceipts = [],
+  outcomeActions,
 }: {
   data: DashboardData | null;
   token?: string;
@@ -143,6 +144,7 @@ export default function DemoEvidence({
   compact?: boolean;
   onIncidentChange?: (incident: Incident | null) => void;
   studentReceipts?: StudentReceipt[];
+  outcomeActions?: React.ReactNode;
 }) {
   const [record, setRecord] = useState<Incident | null>(null);
   const [incidentError, setIncidentError] = useState<string | null>(null);
@@ -390,7 +392,7 @@ export default function DemoEvidence({
             onClick={download}
           >
             <Download aria-hidden="true" className="h-4 w-4" />
-            {downloaded ? "Download again" : "Download evidence JSON"}
+            {downloaded ? "Download again" : "Export evidence"}
           </button>
         </header>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-600">
@@ -465,7 +467,10 @@ export default function DemoEvidence({
             {[
               ["Before", run.baseline],
               ["Failure", failure],
-              ["After", after],
+              [
+                review ? "Current service" : "After",
+                review ? (stale ? undefined : latest) : after,
+              ],
             ].map(([name, value]) => {
               const probe = value as
                 | {
@@ -542,6 +547,14 @@ export default function DemoEvidence({
           scenario={scenarioTitle || incident.title}
           runtime={runtime}
           stale={stale || !!runtimeError}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              {outcomeActions}
+              <button className="ui-button" onClick={download}>
+                Download evidence JSON
+              </button>
+            </div>
+          }
         />
       )}
       {!data ? (
