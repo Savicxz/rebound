@@ -110,7 +110,7 @@ async def probe_service(service: Service, client=None) -> dict:
     try:
         async with probe_client(client) as client:
             start = time.perf_counter()
-            resp = await client.get(url)
+            resp = await client.get(url, timeout=settings.HEALTH_CHECK_TIMEOUT_SECONDS)
             latency = (time.perf_counter() - start) * 1000.0
             status_code = resp.status_code
             if status_code == 200:

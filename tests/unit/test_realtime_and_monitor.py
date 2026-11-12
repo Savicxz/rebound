@@ -394,3 +394,21 @@ async def test_dashboard_sql_aggregate_matches_recorded_resolutions():
         dashboard = await get_dashboard(session)
         assert dashboard.metrics.total_recovered_count == len(rows)
         assert dashboard.metrics.average_recovery_time_seconds == expected
+
+
+@pytest.mark.asyncio
+async def test_borrowed_probe_client_keeps_health_timeout_and_ownership():
+    import httpx
+    from types import SimpleNamespace
+
+    client = AsyncMock()
+    client.get.return_value = httpx.Response(200, text="Synthetic healthy probe")
+    service = SimpleNamespace(
+        id="probe-test", health_url="http://isolated.invalid/health"
+    )
+    observation = await worker.probe_service(service, client)
+    client.get.assert_awaited_once_with(
+        service.health_url, timeout=worker.settings.HEALTH_CHECK_TIMEOUT_SECONDS
+    )
+    client.aclose.assert_not_awaited()
+    assert observation["http_status"] == 200 and observation["success"] is True
