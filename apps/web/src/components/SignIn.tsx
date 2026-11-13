@@ -19,9 +19,7 @@ export default function SignIn({
   useEffect(() => {
     const hostname = window.location.hostname;
     setDemoAccess(
-      ["localhost", "127.0.0.1", "::1"].includes(hostname)
-        ? "local"
-        : "hosted",
+      ["localhost", "127.0.0.1", "::1"].includes(hostname) ? "local" : "hosted",
     );
   }, []);
 
