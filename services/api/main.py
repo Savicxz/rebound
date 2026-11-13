@@ -188,6 +188,57 @@ async def start_local_demo(
     return session_response(user, response)
 
 
+# Hosted judging is opt-in and grants OPERATOR privileges only for the synthetic
+# sandbox. Enforce an exact browser origin and a bounded global admission rate.
+# This does not replace per-action authorization or the incident safety policy.
+judge_access_lock = asyncio.Lock()
+judge_access_attempts: list[float] = []
+
+
+@app.post("/api/v1/auth/judge", response_model=TokenResponse)
+async def start_hosted_judge_demo(
+    request: Request, response: Response, db: AsyncSession = Depends(get_db)
+):
+    expected_origin = settings.PUBLIC_JUDGE_ORIGIN.rstrip("/")
+    origin = request.headers.get("origin", "")
+    if (
+        settings.ENVIRONMENT == "demo"
+        or not settings.PUBLIC_JUDGE_ACCESS
+        or not expected_origin.startswith("https://")
+        or origin != expected_origin
+        or request.headers.get("sec-fetch-site", "same-origin")
+        not in ("same-origin", "none")
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Hosted demo access is not available for this origin.",
+        )
+
+    now = time.monotonic()
+    async with judge_access_lock:
+        judge_access_attempts[:] = [
+            entered for entered in judge_access_attempts if now - entered < 60
+        ]
+        if len(judge_access_attempts) >= 12:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many demo sessions. Please try again shortly.",
+            )
+        judge_access_attempts.append(now)
+
+    user = (
+        (await db.execute(select(User).where(User.username == settings.OPERATOR_USERNAME)))
+        .scalars()
+        .first()
+    )
+    if user is None or user.role != "OPERATOR":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Hosted demo operator account is not ready.",
+        )
+    return session_response(user, response)
+
+
 @app.get("/api/v1/auth/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
