@@ -430,3 +430,29 @@ async def test_hosted_judge_cannot_run_in_local_demo_mode(monkeypatch):
             "/api/v1/auth/judge", headers={"Origin": "https://demo.example.com"}
         )
         assert response.status_code == 403
+
+@pytest.mark.asyncio
+async def test_worker_provider_status_does_not_require_api_credentials(monkeypatch):
+    from sqlalchemy import select, delete
+    from services.api.database import AsyncSessionLocal
+    from services.api.models import AIAnalysis, Incident, Service, get_utc_now
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    async with AsyncSessionLocal() as session:
+        service = (await session.execute(select(Service))).scalars().first()
+        incident = Incident(service_id=service.id, fingerprint="provider-status-test", title="Synthetic provider status", state="CLOSED")
+        session.add(incident)
+        await session.flush()
+        analysis = AIAnalysis(incident_id=incident.id, provider="gemini_api", schema_version="1.0", result_json="{}", model_id="recorded-test-model", created_at=get_utc_now())
+        session.add(analysis)
+        await session.commit()
+        incident_id = incident.id
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            dashboard = (await client.get("/api/v1/dashboard")).json()
+            assert dashboard["metrics"]["gemini_status"] == "verified"
+            assert dashboard["metrics"]["last_analysis_provider"] == "gemini_api"
+    finally:
+        async with AsyncSessionLocal() as session:
+            await session.execute(delete(AIAnalysis).where(AIAnalysis.incident_id == incident_id))
+            await session.execute(delete(Incident).where(Incident.id == incident_id))
+            await session.commit()

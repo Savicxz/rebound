@@ -706,7 +706,7 @@ textarea {
   height: 11rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   padding: 0 1rem;
   scrollbar-gutter: stable;
 }
@@ -842,4 +842,46 @@ textarea {
 }
 .activity-result .studio-outcome dl {
   margin-top: 0.25rem;
+}
+
+.activity-mark {
+  animation: activity-icon-arrive 450ms ease-out;
+}
+.activity-icon-spinner svg {
+  animation: activity-icon-turn 2.4s linear infinite;
+  transform-origin: center;
+}
+.activity-icon-emphasis svg {
+  animation: activity-icon-emphasis 1.8s ease-in-out infinite;
+}
+.activity-console[data-motion="paused"] .activity-mark,
+.activity-console[data-motion="paused"] .activity-mark svg {
+  animation-play-state: paused;
+}
+@keyframes activity-icon-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes activity-icon-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes activity-icon-emphasis {
+  50% {
+    opacity: 0.6;
+    transform: scale(1.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-mark,
+  .activity-mark svg {
+    animation: none !important;
+  }
 }

@@ -97,11 +97,13 @@ Cleanup validation: 58 Python tests, all nine Chromium tests, frontend checks, f
 
 ## Recorded operations console
 
-The backend status stays current above the console. The feed shows only committed incident events, in sequence order, with actual timestamps. New demonstrations use a labelled guided presentation at 1.7 seconds per available entry; backend processing is never delayed. If evidence has not arrived, the console waits instead of inventing a stage.
+The backend status stays current above the console. The feed shows only committed incident events, in sequence order, with actual timestamps. New demonstrations use a labelled guided presentation at 3 seconds per available entry; backend processing is never delayed. If evidence has not arrived, the console waits instead of inventing a stage.
 
 **Pause / Resume presentation** affects only the feed. **Skip to latest** shows the available committed history immediately. **Replay recorded activity** replays evidence after completion; the separate **Replay demo** button starts a new fault scenario. A completed incident opened later shows its current recorded outcome immediately. Counts still require a genuine verification-completed event and actual student-request receipts; a reload can show **Not observed** because request receipts live in browser memory.
 
 Disconnection pauses the presentation and displays a warning. Resume explicitly after fresh evidence returns. Missing event sequences are disclosed, duplicates are removed, and delayed entries are inserted in recorded order. Reduced motion disables entry/wait animations and displays available evidence without paced delays. Keyboard users can focus and scroll the internal feed. Rows are not live-announced; backend status and explicit availability warnings carry announcements.
+
+The latest in-progress presentation icon now spins or gently pulses; completed icons settle. Guided rows are spaced three seconds apart, with a one-second eased internal scroll. Pause/disconnection stops presentation motion, reduced motion disables it, and wheel/touch/keyboard scrolling cancels automatic following. These timings affect presentation only.
 
 ### Live console captures and recording
 
@@ -169,3 +171,5 @@ The rubric is supplied by the team; this mapping does not predict judging scores
 Validation on 2026-11-13: 79 Python tests passed on SQLite; the same 79 passed on isolated PostgreSQL 16. TypeScript/UI assertions, formatting and production build passed. The full 11-test Playwright suite passed, including three consecutive attendance recoveries and mobile/refusal checks; the two console tests were rerun after placing the AI disclosure below the observed result. Hosted main sign-in returned HTTP 200 and OPERATOR. No live Gemini inference was attempted because local credentials were absent; provider tests use mocks.
 
 The first cold-start regression exposed a fixed-sleep readiness assumption in the supervisor test; it now waits for an actual healthy response within a bounded deadline. A PostgreSQL rerun initially reused a database containing an obsolete test-service address; the passing run used a freshly initialized isolated test schema. No thresholds, policy decisions or runbook behavior were changed to make these checks pass.
+
+Reconciliation with PR #10 preserves the three-second pacing, animated active icons, one-second internal scroll, manual-scroll cancellation and reduced motion. The API now derives provider status from the latest recorded worker analysis rather than requiring an API-local key. Credentials remain exclusively on the worker. Reconciled Python validation: 80 passed and one optional live test skipped on each of SQLite and PostgreSQL; local runs remain labelled fallback.

@@ -400,16 +400,17 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         .scalars()
         .first()
     )
-    if settings.GEMINI_ENTERPRISE_ENABLED:
-        gemini_status = "enterprise_unavailable"
-    elif not settings.GEMINI_API_KEY:
-        gemini_status = "not_configured"
-    elif latest_analysis is None:
-        gemini_status = "configured"
-    else:
+    # Analysis runs on the worker; API-local credentials do not establish its status.
+    if latest_analysis is not None:
         gemini_status = (
             "verified" if latest_analysis.provider == "gemini_api" else "fallback"
         )
+    elif settings.GEMINI_ENTERPRISE_ENABLED:
+        gemini_status = "enterprise_unavailable"
+    elif settings.GEMINI_API_KEY:
+        gemini_status = "configured"
+    else:
+        gemini_status = "not_configured"
 
     metrics = DashboardMetrics(
         monitored_services_count=monitored_count,
