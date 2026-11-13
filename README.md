@@ -8,6 +8,28 @@
 
 > **Prototype boundary:** All workloads and attendance records are synthetic. Rebound is not connected to a real university, student information system, or production service.
 
+## Evidence-grounded AI investigation
+
+Campus IT teams repeat the same work: inspect a failure, decide whether a known intervention is safe, and check whether it worked. Rebound demonstrates that loop on synthetic services. Students are potential beneficiaries of service availability; no student impact, time saving, or financial return has been measured.
+
+When configured, the existing Google GenAI SDK checks `GEMINI_MODEL` availability, offers Gemini two incident-scoped **read-only** tools (recorded probes and incident event history), validates its structured recommendation, then hands it to the unchanged deterministic policy. Gemini cannot execute a runbook. Unknown actions, invented evidence, contradictory current observations, or invalid responses require review. Provider outages use the clearly labelled deterministic fallback.
+
+The versioned prompt is in `services/api/investigation.py`. Evidence and tool results are untrusted data. Actual validated requests, results, evidence references, occurrence times and model/provider details are retained in the existing analysis JSON and incident events. Trace events are buffered until analysis completes, so the console presents recorded activity rather than live token streaming. No private model reasoning is exported. Older incident JSON remains readable; no database migration is required.
+
+Limits: one concurrent Gemini investigation and three starts per rolling minute **per monitor process**; two diagnostic rounds, two tools per round, at most three generation calls; SDK retries disabled; 512 output tokens per diagnostic call and 1,536 for assessment; bounded evidence payloads and a 12,000 reported-token stop before another call. A 429 starts a 60-second cooldown. The existing analysis deadline remains the outer limit. Run one monitor worker: this process-local quota is not a distributed rate limiter. Existing atomic incident claims prevent duplicate analysis/recovery for an incident. Failed analysis never implies that a tool ran or recovery succeeded.
+
+Set credentials only in server-side Railway variables, never the browser. Local validation had no configured key: mocked provider tests establish orchestration behavior, **not live Gemini availability**. Verify a genuine configured-provider run before claiming Gemini in a presentation. A successful run must show `gemini_api`, completed diagnostic evidence if requested, and recorded policy/verification events. Gemini may decide no extra tools are needed; do not add fictional calls.
+
+[Judge narration, capture instructions and rubric evidence](docs/demo-studio/README.md#judging-evidence-and-120-second-capture).
+
+### Optional live-provider check
+
+```sh
+python -m pytest tests/integration/test_gemini_live.py --live-gemini -q
+```
+
+Configure `GEMINI_API_KEY` securely in the process environment beforehand; `GEMINI_MODEL` remains configurable. Do not paste credentials into this command. The test skips without explicit opt-in or when the environment key is missing. Normal CI stays keyless and uses mocked provider responses. An opted-in provider error **fails** the test rather than treating fallback as success. It uses synthetic evidence and the isolated test database and never runs recovery. Skipped or mocked tests do not verify live Gemini integration.
+
 ## Open the hosted demo
 
 1. Visit **[Rebound on Railway](https://rebound-production-1974d3f6.up.railway.app)**.

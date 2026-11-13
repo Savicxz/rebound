@@ -70,8 +70,23 @@ export function activityRows(incident: Incident | null): ActivityRow[] {
         detail = "Repeated service checks failed.";
         tone = "failure";
         break;
+      case "GEMINI_INVESTIGATION_STARTED":
+        title = "Gemini investigation started";
+        detail = event.public_message;
+        break;
+      case "DIAGNOSTIC_TOOL_REQUESTED":
+        title = "Diagnostic tool requested";
+        detail = event.public_message;
+        break;
+      case "DIAGNOSTIC_TOOL_COMPLETED":
+        title = "Tool evidence received";
+        detail = event.public_message;
+        break;
       case "ANALYSIS_COMPLETED": {
-        title = "Evidence analyzed";
+        title =
+          metadata.provider === "gemini_api"
+            ? "Gemini assessment recorded"
+            : "Evidence analyzed";
         const analysis =
           typeof metadata.summary === "string"
             ? metadata

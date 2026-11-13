@@ -412,3 +412,82 @@ async def test_borrowed_probe_client_keeps_health_timeout_and_ownership():
     )
     client.aclose.assert_not_awaited()
     assert observation["http_status"] == 200 and observation["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_read_only_history_and_provider_trace_survive_database_round_trip(
+    monkeypatch,
+):
+    from services.api.investigation import run_diagnostic, timestamp
+    from services.api.models import IncidentEvent
+
+    incident_id, service_id = await incident_for_test()
+    async with AsyncSessionLocal() as session:
+        event = await worker.record_event(
+            session, incident_id, "INCIDENT_OPENED", "Unknown failure"
+        )
+        await session.commit()
+        source_id = event.id
+    output = await run_diagnostic(
+        "get_incident_event_history", {"incident_id": incident_id}, incident_id, []
+    )
+    assert output["evidence_ids"] == [source_id]
+    assert output["events"][0]["message"] == "Unknown failure"
+    other_id, _ = await incident_for_test()
+    assert (
+        await run_diagnostic(
+            "get_incident_event_history", {"incident_id": other_id}, other_id, []
+        )
+    )["events"] == []
+    at = timestamp()
+
+    class RecordedAnalyzer:
+        model_id = "mock-provider-test-only"
+
+        async def analyze(self, **kwargs):
+            result = await worker.DeterministicDemoAnalyzer().analyze(**kwargs)
+            # Explicit provider stub: no real model inference is asserted by this test.
+            result.provider = "gemini_api"
+            result.investigation = {
+                "steps": [
+                    {
+                        "event_type": "DIAGNOSTIC_TOOL_COMPLETED",
+                        "summary": "Read incident history",
+                        "at": at,
+                        "tool": "get_incident_event_history",
+                        "result": output,
+                    }
+                ]
+            }
+            return result
+
+    monkeypatch.setattr(worker, "get_analyzer", RecordedAnalyzer)
+    async with AsyncSessionLocal() as session:
+        incident = await session.get(Incident, incident_id)
+        service = await session.get(Service, service_id)
+        await worker.handle_incident_flow(session, incident, service, [])
+    async with AsyncSessionLocal() as session:
+        analysis = (
+            await session.execute(
+                select(AIAnalysis).where(AIAnalysis.incident_id == incident_id)
+            )
+        ).scalar_one()
+        events = (
+            (
+                await session.execute(
+                    select(IncidentEvent)
+                    .where(IncidentEvent.incident_id == incident_id)
+                    .order_by(IncidentEvent.sequence)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert (
+            json.loads(analysis.result_json)["investigation"]["steps"][0]["result"]
+            == output
+        )
+        assert events[1].event_type == "DIAGNOSTIC_TOOL_COMPLETED"
+        assert json.loads(events[1].metadata_json)["at"] == at
+        assert [e.sequence for e in events] == list(range(1, len(events) + 1))
+        assert not (await session.get(Incident, incident_id)).auto_recovery_attempted

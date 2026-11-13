@@ -252,8 +252,8 @@ export default function DemoControlsView({
             Recover stalled services
           </h1>
           <p className="mt-2 text-sm text-stone-600">
-            Rebound checks a failure, applies only an approved fix, and verifies
-            recovery.
+            Rebound helps campus IT investigate failures, apply approved fixes,
+            and verify recovery.
           </p>
         </div>
         <span className="state-tag">

@@ -12,6 +12,8 @@ import {
 import { Incident } from "../types";
 import {
   activityRows,
+  friendlyAction,
+  readableEvidence,
   hasHistoryGap,
   mergeActivity,
   PLAYBACK_INTERVAL_MS,
@@ -321,6 +323,93 @@ export default function ActivityConsole({
             </div>
           )}
         </div>
+      )}
+      {incident?.latest_analysis && (
+        <details className="px-4 py-2 text-xs text-stone-600">
+          <summary className="cursor-pointer">AI investigation details</summary>
+          <dl className="mt-2 grid gap-2">
+            <div>
+              <dt className="font-medium">Provider / model</dt>
+              <dd>
+                {providerName(incident)} /{" "}
+                {incident.latest_analysis.investigation?.model ||
+                  "Deterministic engine"}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">Purpose / prompt</dt>
+              <dd>
+                {incident.latest_analysis.investigation?.purpose ||
+                  "Match recorded failure evidence to predefined recovery candidates."}{" "}
+                {incident.latest_analysis.investigation?.prompt_version}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">Evidence supplied</dt>
+              <dd>
+                {
+                  (
+                    incident.latest_analysis.investigation?.evidence_ids ||
+                    incident.latest_analysis.evidence_event_ids
+                  ).length
+                }{" "}
+                recorded evidence references
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">Actual diagnostic tools</dt>
+              <dd>
+                {incident.latest_analysis.investigation?.steps
+                  .filter((s) => s.event_type === "DIAGNOSTIC_TOOL_COMPLETED")
+                  .map((s, i) => <p key={i}>{s.summary}</p>) || null}
+                {!incident.latest_analysis.investigation?.steps.some(
+                  (s) => s.event_type === "DIAGNOSTIC_TOOL_COMPLETED",
+                ) && "No diagnostic tool completed."}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">Assessment</dt>
+              <dd>
+                {incident.latest_analysis.suspected_cause} /{" "}
+                {incident.latest_analysis.confidence} confidence
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">Recommendation</dt>
+              <dd>
+                {friendlyAction(
+                  incident.latest_analysis.recommended_runbook_id,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">Independent policy verdict</dt>
+              <dd>
+                {readableEvidence(
+                  incident.events.find(
+                    (e) => e.event_type === "POLICY_EVALUATED",
+                  )?.public_message || "Not yet recorded",
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">Verification</dt>
+              <dd>
+                {incident.events.find(
+                  (e) => e.event_type === "INCIDENT_RESOLVED",
+                )?.public_message ||
+                  "Recovery has not been independently verified."}
+              </dd>
+            </div>
+            {(incident.latest_analysis.fallback_reason ||
+              incident.latest_analysis.investigation?.limitation) && (
+              <div role="status">
+                {incident.latest_analysis.fallback_reason ||
+                  incident.latest_analysis.investigation?.limitation}
+              </div>
+            )}
+          </dl>
+        </details>
       )}
     </section>
   );

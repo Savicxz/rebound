@@ -48,6 +48,24 @@ export interface AIAnalysisResult {
   reasoning_summary: string;
   requires_human_review: boolean;
   fallback_reason?: string | null;
+  investigation?: {
+    prompt_version: string;
+    purpose: string;
+    model: string;
+    model_available: boolean;
+    started_at: string;
+    completed_at: string | null;
+    evidence_ids?: string[];
+    token_count: number;
+    limitation: string | null;
+    steps: {
+      event_type: string;
+      at: string;
+      summary: string;
+      tool?: string;
+      evidence_ids?: string[];
+    }[];
+  } | null;
 }
 
 export interface RunbookExecution {

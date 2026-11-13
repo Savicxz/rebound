@@ -1,0 +1,7 @@
+{
+  "hostedSignIn": true,
+  "role": "OPERATOR",
+  "meStatus": 200,
+  "testedAt": "2026-11-13T04:58:21.840Z",
+  "scope": "Deployed main; no scenario reset or injection"
+}
