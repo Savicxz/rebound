@@ -10,8 +10,8 @@ Before presenting, run `python start.py`, click **Start local demo**, reset any 
 | --- | --- |
 | 0-10 s | "Attendance records can get stuck waiting to sync. Rebound demonstrates one approved recovery and checks the result. These are synthetic records." |
 | 10-20 s | Click **Run demonstration**, then **Confirm scenario**. "Twelve records are now queued. This request shows the failure; a separate monitor detects it." |
-| 20-40 s | Show the failed request and recorded checks. "Rebound allows a fixed queue replay only when evidence matches. Analysis cannot override that rule." Name the actual provider displayed; fallback is not live Gemini. |
-| 40-60 s | Wait for **Queue replayed. Recovery verified.** and **0 records pending / 12 processed**. "The queue was processed without restarting the service. Independent health checks verified recovery." Quote only the displayed time, measured from incident detection. |
+| 20-40 s | Show the failed request, then the visible **Analysis and safety decision** panel. "Rebound allows a fixed queue replay only when evidence matches. Analysis cannot override that rule." Read the recorded assessment, recommended predefined action and independent policy verdict. Name the actual provider displayed; fallback is not live Gemini. |
+| 40-60 s | Wait for **Queue replayed. Recovery verified.** and the observed counts: **12 pending at failure / 12 processed / 0 remaining**. "The queue was processed without restarting the service. Independent health checks verified recovery." Quote only the displayed time, measured from incident detection. |
 | 60-70 s | Point to **Print incident summary** and **Download evidence JSON**. "The result and supporting evidence remain available for review." |
 | 70-85 s | Show the saved registration safety-stop screenshot. "For this simulated database fault, there is no approved remedy. Rebound records the evidence and stops without restarting." Identify it as a completed test capture, not a second live run. |
 | 85-90 s | "Rebound automates a known recovery task and makes its safety boundary visible." |
@@ -71,6 +71,12 @@ Playwright starts an isolated API, monitor, supervisor, workload and web server 
 
 ## Validation for this presentation update
 
-58 Python tests, all eight Chromium journeys, `npm run check`, `npm run format:check`, and `npm run build` passed. Desktop attendance, expanded evidence, mobile attendance and the dark safety-stop capture were visually inspected. No backend files or policies changed. Live Gemini and native print dialogs were not exercised.
+58 Python tests passed. The browser suite includes the existing journeys plus three consecutive attendance recoveries in one test. Desktop attendance, expanded evidence, mobile attendance and the dark safety-stop capture were visually inspected. No backend files or policies changed. Live Gemini and native print dialogs were not exercised.
 
-The optional `npm run build:production` packaging attempt was stopped because an existing standalone server was using `.next-production` on port 3000; that server was left running. Stop a standalone server before rebuilding its output directory. The standard production build passed independently.
+Stop any running standalone server before rebuilding its `.next-production` output directory. The normal build and the presentation tests should also run sequentially.
+
+The main panel now exposes the recorded analysis summary and recommended action alongside the deterministic policy verdict. Provider labels are driven by stored results, never credential presence. Request timing measurements and raw evidence remain expandable. Three consecutive attendance runs are exercised by the browser suite; their recorded incidents, executions and verification events are saved in [three-attendance-runs.json](three-attendance-runs.json). Viewport captures: [run 1](screenshots/studio-attendance-run-1.png), [run 2](screenshots/studio-attendance-run-2.png), [run 3](screenshots/studio-attendance-run-3.png). These use a two-second test polling interval and deterministic fallback; they are not production performance promises.
+
+The three recorded attendance runs each resolved a distinct incident with one successful queue replay, twelve processed records, zero remaining, two successful verification events and no process restart. Viewport assertions check that the observed result counts fit within 1366 x 768 after focusing the workspace. Gemini-rendering fixtures test provider presentation only; live Gemini was not exercised because this environment has no configured key.
+
+Final checks: 58 Python tests and all nine Chromium tests passed; `npm run check`, `npm run format:check`, and `npm run build` passed. Backend thresholds, policies, runbooks and incident lifecycle were unchanged.

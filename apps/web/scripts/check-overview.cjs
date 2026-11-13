@@ -508,6 +508,37 @@ const analysis = {
     evidence_event_ids: [],
   },
 };
+// Provider rendering fixtures verify provenance, not a live Gemini connection.
+for (const provider of ["gemini_api", "demo_fallback"]) {
+  const markup = renderToStaticMarkup(
+    React.createElement(evidence.RecordedAnalysis, {
+      incident: {
+        ...analysis,
+        latest_analysis: {
+          ...analysis.latest_analysis,
+          provider,
+          recommended_runbook_id: "REPLAY_DEMO_ATTENDANCE_QUEUE",
+        },
+        events: [
+          {
+            event_type: "POLICY_EVALUATED",
+            public_message:
+              "Recorded evidence matches; bounded recovery approved.",
+          },
+        ],
+      },
+    }),
+  );
+  assert.match(
+    markup,
+    provider === "gemini_api"
+      ? /Gemini API \(recorded analysis\)/
+      : /not a live Gemini call/,
+  );
+  assert.match(markup, /Synthetic connection failure/);
+  assert.match(markup, /Replay the synthetic attendance queue/);
+  assert.match(markup, /Recorded evidence matches; bounded recovery approved/);
+}
 const verifying = renderEvidence({
   ...withIncident({
     ...analysis,

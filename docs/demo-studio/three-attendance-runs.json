@@ -1,0 +1,530 @@
+[
+  {
+    "run": {
+      "id": "41a4a38d-754d-4dab-b82a-701eef6b38c5",
+      "scenario_id": "attendance_backlog",
+      "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+      "injected_at": "2026-11-13T00:11:19.809144+00:00",
+      "baseline": {
+        "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+        "observed_at": "2026-11-13T00:11:19.807148+00:00",
+        "latency_ms": 1.68,
+        "http_status": 200,
+        "success": true,
+        "error_type": null,
+        "sanitized_details": "{\"status\":\"healthy\",\"service\":\"demo-service\",\"version\":\"1.0.4-synthetic\",\"uptime_seconds\":32.6,\"simulated\":true}"
+      },
+      "runtime_before": {
+        "observed_at": "2026-11-13T00:11:19.809136+00:00",
+        "child_running": true,
+        "child_pid": 18408,
+        "mode": "normal",
+        "restart_count": 2,
+        "last_action": "reset_executed",
+        "last_action_timestamp": 1794528677.434275
+      },
+      "initiated_by": "admin",
+      "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+      "failure_threshold": 3,
+      "verification_threshold": 2,
+      "check_interval_seconds": 2
+    },
+    "incident": {
+      "id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+      "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+      "fingerprint": "demo-service_HTTP_429",
+      "title": "Degraded performance on Attendance synchronisation (demo)",
+      "severity": "HIGH",
+      "state": "RESOLVED",
+      "detected_at": "2026-11-13T00:11:24.663204",
+      "resolved_at": "2026-11-13T00:11:28.690229",
+      "cause_code": "HTTP_429",
+      "last_error": "{\"status\":\"backlog\",\"error_type\":\"ATTENDANCE_QUEUE_BACKLOG\",\"message\":\"Twelve synthetic records enter the demo queue; health checks return HTTP 429.\",\"signals\":[],\"owner\":null,\"queued_records\":12,\"simulated\":true}",
+      "auto_recovery_attempted": true,
+      "auto_recovery_cooldown_until": "2026-11-13T00:12:24.705485",
+      "version": 9,
+      "events": [
+        {
+          "id": "ddc7bb63-6182-40e1-b0b5-7f41be64d754",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "sequence": 1,
+          "event_type": "INCIDENT_OPENED",
+          "actor_type": "SYSTEM",
+          "actor_id": "health_monitor",
+          "at": "2026-11-13T00:11:24.667817",
+          "public_message": "Incident opened: 3 consecutive failed probes. Reason: HTTP_429",
+          "metadata_json": "{\"service_id\": \"eec9de2e-9e2e-4e7d-9d58-d1be34b904cd\", \"observed_at\": \"2026-11-13 00:11:24.662058+00:00\", \"latency_ms\": 1.53, \"http_status\": 429, \"success\": false, \"error_type\": \"HTTP_429\", \"sanitized_details\": \"{\\\"status\\\":\\\"backlog\\\",\\\"error_type\\\":\\\"ATTENDANCE_QUEUE_BACKLOG\\\",\\\"message\\\":\\\"Twelve synthetic records enter the demo queue; health checks return HTTP 429.\\\",\\\"signals\\\":[],\\\"owner\\\":null,\\\"queued_records\\\":12,\\\"simulated\\\":true}\"}"
+        },
+        {
+          "id": "66ae7e58-f207-4f69-ab19-44deb486f817",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "sequence": 2,
+          "event_type": "ANALYSIS_COMPLETED",
+          "actor_type": "AI",
+          "actor_id": "demo_fallback",
+          "at": "2026-11-13T00:11:24.693313",
+          "public_message": "Incident analysis completed via demo_fallback. Suspected cause: Observed demo fault: ATTENDANCE_QUEUE_BACKLOG.",
+          "metadata_json": "{\"incident_id\": \"0040bc6f-503f-43bc-a62f-3adc9bcb628f\", \"provider\": \"demo_fallback\", \"summary\": \"Attendance synchronisation (demo): Attendance synchronisation queue stalled\", \"suspected_cause\": \"Observed demo fault: ATTENDANCE_QUEUE_BACKLOG\", \"evidence_event_ids\": [\"b9a3818b-caf3-4652-91f1-ca336e204fbc\", \"eef447e6-cbae-4dcd-82c4-f73ea40ecd4b\", \"4d08ea9f-15e9-401c-a1f9-631f444e16ee\", \"b9a940df-3011-4416-9511-84c41879cc1b\", \"0a82e461-3305-40aa-9036-aaaab089b590\"], \"confidence\": \"medium\", \"recommended_runbook_id\": \"REPLAY_DEMO_ATTENDANCE_QUEUE\", \"reasoning_summary\": \"Replay the bounded synthetic queue, preserve the process, then verify healthy checks.\", \"requires_human_review\": false, \"fallback_reason\": null}"
+        },
+        {
+          "id": "c8d6ff16-a389-4b3b-ac4e-9b410a33c51b",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "sequence": 3,
+          "event_type": "POLICY_EVALUATED",
+          "actor_type": "SYSTEM",
+          "actor_id": "policy_engine",
+          "at": "2026-11-13T00:11:24.704616",
+          "public_message": "Policy verdict: Recorded evidence matches the allowlisted runbook REPLAY_DEMO_ATTENDANCE_QUEUE. Bounded recovery approved.",
+          "metadata_json": "{\"allowed\": true, \"auto_recover\": true, \"runbook_id\": \"REPLAY_DEMO_ATTENDANCE_QUEUE\", \"target_state\": \"RECOVERING\"}"
+        },
+        {
+          "id": "b91d6c6d-bb74-45ed-a8b3-c35b1c419f42",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "sequence": 4,
+          "event_type": "RECOVERY_STARTED",
+          "actor_type": "SYSTEM",
+          "actor_id": "runbook_executor",
+          "at": "2026-11-13T00:11:24.717589",
+          "public_message": "Executing pre-approved allowlisted runbook: REPLAY_DEMO_ATTENDANCE_QUEUE",
+          "metadata_json": null
+        },
+        {
+          "id": "01c35196-2ea9-4643-bebf-58c375cb26bd",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "sequence": 5,
+          "event_type": "RECOVERY_ACTION_COMPLETED",
+          "actor_type": "SYSTEM",
+          "actor_id": "runbook_executor",
+          "at": "2026-11-13T00:11:24.963261",
+          "public_message": "Processed 12 synthetic attendance records; 0 remaining. Process preserved. Transitioning to VERIFYING state (awaiting 2 healthy probes).",
+          "metadata_json": "{\"runner_response\": \"Processed 12 synthetic attendance records; 0 remaining. Process preserved.\"}"
+        },
+        {
+          "id": "97c5e3a7-1cd2-47df-8733-3ff7ce3f5fc7",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "sequence": 6,
+          "event_type": "VERIFICATION_PROBE_SUCCESS",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:26.680668",
+          "public_message": "Health probe check 1/2 passed (latency: 2.11ms).",
+          "metadata_json": null
+        },
+        {
+          "id": "791596e7-065a-4c67-a637-f698de3b88ec",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "sequence": 7,
+          "event_type": "VERIFICATION_PROBE_SUCCESS",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:28.687968",
+          "public_message": "Health probe check 2/2 passed (latency: 2.01ms).",
+          "metadata_json": null
+        },
+        {
+          "id": "c50bdd8b-6ba8-4c8f-a674-79671adc59f1",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "sequence": 8,
+          "event_type": "INCIDENT_RESOLVED",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:28.692793",
+          "public_message": "Incident fully resolved. Recovery verified with 2 consecutive healthy probes. Measured MTTR: 4.0 seconds.",
+          "metadata_json": "{\"mttr_seconds\": 4.0}"
+        }
+      ],
+      "latest_analysis": {
+        "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+        "provider": "demo_fallback",
+        "summary": "Attendance synchronisation (demo): Attendance synchronisation queue stalled",
+        "suspected_cause": "Observed demo fault: ATTENDANCE_QUEUE_BACKLOG",
+        "evidence_event_ids": [
+          "b9a3818b-caf3-4652-91f1-ca336e204fbc",
+          "eef447e6-cbae-4dcd-82c4-f73ea40ecd4b",
+          "4d08ea9f-15e9-401c-a1f9-631f444e16ee",
+          "b9a940df-3011-4416-9511-84c41879cc1b",
+          "0a82e461-3305-40aa-9036-aaaab089b590"
+        ],
+        "confidence": "medium",
+        "recommended_runbook_id": "REPLAY_DEMO_ATTENDANCE_QUEUE",
+        "reasoning_summary": "Replay the bounded synthetic queue, preserve the process, then verify healthy checks.",
+        "requires_human_review": false,
+        "fallback_reason": null
+      },
+      "runbook_executions": [
+        {
+          "id": "c58e33e4-ec9d-41d5-a904-e32b167741d0",
+          "incident_id": "0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "runbook_id": "REPLAY_DEMO_ATTENDANCE_QUEUE",
+          "idempotency_key": "rec_0040bc6f-503f-43bc-a62f-3adc9bcb628f",
+          "status": "SUCCESS",
+          "approval_actor_id": "autonomous_policy",
+          "started_at": "2026-11-13T00:11:24.706414",
+          "finished_at": "2026-11-13T00:11:24.954428",
+          "runner_response_redacted": "Processed 12 synthetic attendance records; 0 remaining. Process preserved."
+        }
+      ]
+    },
+    "runtime": {
+      "observed_at": "2026-11-13T00:11:29.348599+00:00",
+      "child_running": true,
+      "child_pid": 18408,
+      "mode": "normal",
+      "restart_count": 2,
+      "last_action": "attendance_replay_executed",
+      "last_action_timestamp": 1794528684.9512115
+    }
+  },
+  {
+    "run": {
+      "id": "639caa68-5f20-40d4-8e3a-8cdb9227c148",
+      "scenario_id": "attendance_backlog",
+      "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+      "injected_at": "2026-11-13T00:11:30.224607+00:00",
+      "baseline": {
+        "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+        "observed_at": "2026-11-13T00:11:30.222122+00:00",
+        "latency_ms": 1.91,
+        "http_status": 200,
+        "success": true,
+        "error_type": null,
+        "sanitized_details": "{\"status\":\"healthy\",\"service\":\"demo-service\",\"version\":\"1.0.4-synthetic\",\"uptime_seconds\":43.01,\"simulated\":true}"
+      },
+      "runtime_before": {
+        "observed_at": "2026-11-13T00:11:30.224595+00:00",
+        "child_running": true,
+        "child_pid": 18408,
+        "mode": "normal",
+        "restart_count": 2,
+        "last_action": "reset_executed",
+        "last_action_timestamp": 1794528690.1283913
+      },
+      "initiated_by": "admin",
+      "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+      "failure_threshold": 3,
+      "verification_threshold": 2,
+      "check_interval_seconds": 2
+    },
+    "incident": {
+      "id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+      "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+      "fingerprint": "demo-service_HTTP_429",
+      "title": "Degraded performance on Attendance synchronisation (demo)",
+      "severity": "HIGH",
+      "state": "RESOLVED",
+      "detected_at": "2026-11-13T00:11:34.700342",
+      "resolved_at": "2026-11-13T00:11:38.718285",
+      "cause_code": "HTTP_429",
+      "last_error": "{\"status\":\"backlog\",\"error_type\":\"ATTENDANCE_QUEUE_BACKLOG\",\"message\":\"Twelve synthetic records enter the demo queue; health checks return HTTP 429.\",\"signals\":[],\"owner\":null,\"queued_records\":12,\"simulated\":true}",
+      "auto_recovery_attempted": true,
+      "auto_recovery_cooldown_until": "2026-11-13T00:12:34.747475",
+      "version": 9,
+      "events": [
+        {
+          "id": "0d4404c0-cfc4-45f9-a41e-64e98e0d21f5",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "sequence": 1,
+          "event_type": "INCIDENT_OPENED",
+          "actor_type": "SYSTEM",
+          "actor_id": "health_monitor",
+          "at": "2026-11-13T00:11:34.710270",
+          "public_message": "Incident opened: 3 consecutive failed probes. Reason: HTTP_429",
+          "metadata_json": "{\"service_id\": \"eec9de2e-9e2e-4e7d-9d58-d1be34b904cd\", \"observed_at\": \"2026-11-13 00:11:34.699219+00:00\", \"latency_ms\": 1.61, \"http_status\": 429, \"success\": false, \"error_type\": \"HTTP_429\", \"sanitized_details\": \"{\\\"status\\\":\\\"backlog\\\",\\\"error_type\\\":\\\"ATTENDANCE_QUEUE_BACKLOG\\\",\\\"message\\\":\\\"Twelve synthetic records enter the demo queue; health checks return HTTP 429.\\\",\\\"signals\\\":[],\\\"owner\\\":null,\\\"queued_records\\\":12,\\\"simulated\\\":true}\"}"
+        },
+        {
+          "id": "3b805701-5721-427f-aa39-1711950a3768",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "sequence": 2,
+          "event_type": "ANALYSIS_COMPLETED",
+          "actor_type": "AI",
+          "actor_id": "demo_fallback",
+          "at": "2026-11-13T00:11:34.735324",
+          "public_message": "Incident analysis completed via demo_fallback. Suspected cause: Observed demo fault: ATTENDANCE_QUEUE_BACKLOG.",
+          "metadata_json": "{\"incident_id\": \"b0516be9-7063-4f46-8ec5-a9c931ab7c34\", \"provider\": \"demo_fallback\", \"summary\": \"Attendance synchronisation (demo): Attendance synchronisation queue stalled\", \"suspected_cause\": \"Observed demo fault: ATTENDANCE_QUEUE_BACKLOG\", \"evidence_event_ids\": [\"ff92c4cc-eece-4f4a-bce0-3f7663435711\", \"a6bf5567-fbe0-4fd7-99df-c44949f06127\", \"0ca950d2-aeea-4eaa-a647-0fa5ba317232\", \"7a6bfaf9-af47-4185-8ce5-0306cc1d0e4d\", \"33ea24cc-2f00-4bf1-8df8-b2ed14b52ad2\"], \"confidence\": \"medium\", \"recommended_runbook_id\": \"REPLAY_DEMO_ATTENDANCE_QUEUE\", \"reasoning_summary\": \"Replay the bounded synthetic queue, preserve the process, then verify healthy checks.\", \"requires_human_review\": false, \"fallback_reason\": null}"
+        },
+        {
+          "id": "01e7086b-84ea-49fc-953e-7e67a6422044",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "sequence": 3,
+          "event_type": "POLICY_EVALUATED",
+          "actor_type": "SYSTEM",
+          "actor_id": "policy_engine",
+          "at": "2026-11-13T00:11:34.746480",
+          "public_message": "Policy verdict: Recorded evidence matches the allowlisted runbook REPLAY_DEMO_ATTENDANCE_QUEUE. Bounded recovery approved.",
+          "metadata_json": "{\"allowed\": true, \"auto_recover\": true, \"runbook_id\": \"REPLAY_DEMO_ATTENDANCE_QUEUE\", \"target_state\": \"RECOVERING\"}"
+        },
+        {
+          "id": "ea882a81-84d1-4fb2-b37b-159ed5e1c981",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "sequence": 4,
+          "event_type": "RECOVERY_STARTED",
+          "actor_type": "SYSTEM",
+          "actor_id": "runbook_executor",
+          "at": "2026-11-13T00:11:34.758396",
+          "public_message": "Executing pre-approved allowlisted runbook: REPLAY_DEMO_ATTENDANCE_QUEUE",
+          "metadata_json": null
+        },
+        {
+          "id": "6e72ba83-84f2-488c-8db3-cbab23b4e2d9",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "sequence": 5,
+          "event_type": "RECOVERY_ACTION_COMPLETED",
+          "actor_type": "SYSTEM",
+          "actor_id": "runbook_executor",
+          "at": "2026-11-13T00:11:34.981176",
+          "public_message": "Processed 12 synthetic attendance records; 0 remaining. Process preserved. Transitioning to VERIFYING state (awaiting 2 healthy probes).",
+          "metadata_json": "{\"runner_response\": \"Processed 12 synthetic attendance records; 0 remaining. Process preserved.\"}"
+        },
+        {
+          "id": "3ef54f02-9a87-4ffc-89ab-825deba5dad7",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "sequence": 6,
+          "event_type": "VERIFICATION_PROBE_SUCCESS",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:36.709341",
+          "public_message": "Health probe check 1/2 passed (latency: 1.9ms).",
+          "metadata_json": null
+        },
+        {
+          "id": "ff465513-874c-434e-9cca-cd4282e6580b",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "sequence": 7,
+          "event_type": "VERIFICATION_PROBE_SUCCESS",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:38.716776",
+          "public_message": "Health probe check 2/2 passed (latency: 1.57ms).",
+          "metadata_json": null
+        },
+        {
+          "id": "076f7b66-0d07-4041-9230-6998e4b1831f",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "sequence": 8,
+          "event_type": "INCIDENT_RESOLVED",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:38.720386",
+          "public_message": "Incident fully resolved. Recovery verified with 2 consecutive healthy probes. Measured MTTR: 4.0 seconds.",
+          "metadata_json": "{\"mttr_seconds\": 4.0}"
+        }
+      ],
+      "latest_analysis": {
+        "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+        "provider": "demo_fallback",
+        "summary": "Attendance synchronisation (demo): Attendance synchronisation queue stalled",
+        "suspected_cause": "Observed demo fault: ATTENDANCE_QUEUE_BACKLOG",
+        "evidence_event_ids": [
+          "ff92c4cc-eece-4f4a-bce0-3f7663435711",
+          "a6bf5567-fbe0-4fd7-99df-c44949f06127",
+          "0ca950d2-aeea-4eaa-a647-0fa5ba317232",
+          "7a6bfaf9-af47-4185-8ce5-0306cc1d0e4d",
+          "33ea24cc-2f00-4bf1-8df8-b2ed14b52ad2"
+        ],
+        "confidence": "medium",
+        "recommended_runbook_id": "REPLAY_DEMO_ATTENDANCE_QUEUE",
+        "reasoning_summary": "Replay the bounded synthetic queue, preserve the process, then verify healthy checks.",
+        "requires_human_review": false,
+        "fallback_reason": null
+      },
+      "runbook_executions": [
+        {
+          "id": "60c3d6a2-48de-4be9-9764-59be2afb8b2c",
+          "incident_id": "b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "runbook_id": "REPLAY_DEMO_ATTENDANCE_QUEUE",
+          "idempotency_key": "rec_b0516be9-7063-4f46-8ec5-a9c931ab7c34",
+          "status": "SUCCESS",
+          "approval_actor_id": "autonomous_policy",
+          "started_at": "2026-11-13T00:11:34.748278",
+          "finished_at": "2026-11-13T00:11:34.976882",
+          "runner_response_redacted": "Processed 12 synthetic attendance records; 0 remaining. Process preserved."
+        }
+      ]
+    },
+    "runtime": {
+      "observed_at": "2026-11-13T00:11:39.405473+00:00",
+      "child_running": true,
+      "child_pid": 18408,
+      "mode": "normal",
+      "restart_count": 2,
+      "last_action": "attendance_replay_executed",
+      "last_action_timestamp": 1794528694.973808
+    }
+  },
+  {
+    "run": {
+      "id": "cda5701b-4037-46e3-8eec-6100668af588",
+      "scenario_id": "attendance_backlog",
+      "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+      "injected_at": "2026-11-13T00:11:40.218000+00:00",
+      "baseline": {
+        "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+        "observed_at": "2026-11-13T00:11:40.214647+00:00",
+        "latency_ms": 2.77,
+        "http_status": 200,
+        "success": true,
+        "error_type": null,
+        "sanitized_details": "{\"status\":\"healthy\",\"service\":\"demo-service\",\"version\":\"1.0.4-synthetic\",\"uptime_seconds\":53.0,\"simulated\":true}"
+      },
+      "runtime_before": {
+        "observed_at": "2026-11-13T00:11:40.217986+00:00",
+        "child_running": true,
+        "child_pid": 18408,
+        "mode": "normal",
+        "restart_count": 2,
+        "last_action": "reset_executed",
+        "last_action_timestamp": 1794528700.1100392
+      },
+      "initiated_by": "admin",
+      "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+      "failure_threshold": 3,
+      "verification_threshold": 2,
+      "check_interval_seconds": 2
+    },
+    "incident": {
+      "id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+      "service_id": "eec9de2e-9e2e-4e7d-9d58-d1be34b904cd",
+      "fingerprint": "demo-service_HTTP_429",
+      "title": "Degraded performance on Attendance synchronisation (demo)",
+      "severity": "HIGH",
+      "state": "RESOLVED",
+      "detected_at": "2026-11-13T00:11:44.734467",
+      "resolved_at": "2026-11-13T00:11:48.761790",
+      "cause_code": "HTTP_429",
+      "last_error": "{\"status\":\"backlog\",\"error_type\":\"ATTENDANCE_QUEUE_BACKLOG\",\"message\":\"Twelve synthetic records enter the demo queue; health checks return HTTP 429.\",\"signals\":[],\"owner\":null,\"queued_records\":12,\"simulated\":true}",
+      "auto_recovery_attempted": true,
+      "auto_recovery_cooldown_until": "2026-11-13T00:12:44.779346",
+      "version": 9,
+      "events": [
+        {
+          "id": "f926d9cf-d45e-4ab2-bd25-ddf31e20401d",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "sequence": 1,
+          "event_type": "INCIDENT_OPENED",
+          "actor_type": "SYSTEM",
+          "actor_id": "health_monitor",
+          "at": "2026-11-13T00:11:44.744065",
+          "public_message": "Incident opened: 3 consecutive failed probes. Reason: HTTP_429",
+          "metadata_json": "{\"service_id\": \"eec9de2e-9e2e-4e7d-9d58-d1be34b904cd\", \"observed_at\": \"2026-11-13 00:11:44.733276+00:00\", \"latency_ms\": 1.66, \"http_status\": 429, \"success\": false, \"error_type\": \"HTTP_429\", \"sanitized_details\": \"{\\\"status\\\":\\\"backlog\\\",\\\"error_type\\\":\\\"ATTENDANCE_QUEUE_BACKLOG\\\",\\\"message\\\":\\\"Twelve synthetic records enter the demo queue; health checks return HTTP 429.\\\",\\\"signals\\\":[],\\\"owner\\\":null,\\\"queued_records\\\":12,\\\"simulated\\\":true}\"}"
+        },
+        {
+          "id": "a666fd73-6980-4676-b750-60afa410033d",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "sequence": 2,
+          "event_type": "ANALYSIS_COMPLETED",
+          "actor_type": "AI",
+          "actor_id": "demo_fallback",
+          "at": "2026-11-13T00:11:44.768070",
+          "public_message": "Incident analysis completed via demo_fallback. Suspected cause: Observed demo fault: ATTENDANCE_QUEUE_BACKLOG.",
+          "metadata_json": "{\"incident_id\": \"fb9a493e-8592-4a1c-9c11-92ec652f7e59\", \"provider\": \"demo_fallback\", \"summary\": \"Attendance synchronisation (demo): Attendance synchronisation queue stalled\", \"suspected_cause\": \"Observed demo fault: ATTENDANCE_QUEUE_BACKLOG\", \"evidence_event_ids\": [\"682a77bb-3a23-4383-b6e5-fbe581d14bac\", \"3843bc11-074e-4c20-9c80-0f5dcc737ecb\", \"387007ee-3766-4a0a-b405-f9cd8f33c2a4\", \"a802d5c6-1e7f-47aa-b55b-885932e4a001\", \"54dfc312-9b46-489d-a991-8adebd3ea032\"], \"confidence\": \"medium\", \"recommended_runbook_id\": \"REPLAY_DEMO_ATTENDANCE_QUEUE\", \"reasoning_summary\": \"Replay the bounded synthetic queue, preserve the process, then verify healthy checks.\", \"requires_human_review\": false, \"fallback_reason\": null}"
+        },
+        {
+          "id": "77fdd21b-9a0f-4746-aeb8-fcc00bf5e805",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "sequence": 3,
+          "event_type": "POLICY_EVALUATED",
+          "actor_type": "SYSTEM",
+          "actor_id": "policy_engine",
+          "at": "2026-11-13T00:11:44.778479",
+          "public_message": "Policy verdict: Recorded evidence matches the allowlisted runbook REPLAY_DEMO_ATTENDANCE_QUEUE. Bounded recovery approved.",
+          "metadata_json": "{\"allowed\": true, \"auto_recover\": true, \"runbook_id\": \"REPLAY_DEMO_ATTENDANCE_QUEUE\", \"target_state\": \"RECOVERING\"}"
+        },
+        {
+          "id": "8a27d58a-61e2-467d-9129-be9ee53d9468",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "sequence": 4,
+          "event_type": "RECOVERY_STARTED",
+          "actor_type": "SYSTEM",
+          "actor_id": "runbook_executor",
+          "at": "2026-11-13T00:11:44.789247",
+          "public_message": "Executing pre-approved allowlisted runbook: REPLAY_DEMO_ATTENDANCE_QUEUE",
+          "metadata_json": null
+        },
+        {
+          "id": "7c9f41c9-1eb8-4ae6-ac09-6768ab63be1f",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "sequence": 5,
+          "event_type": "RECOVERY_ACTION_COMPLETED",
+          "actor_type": "SYSTEM",
+          "actor_id": "runbook_executor",
+          "at": "2026-11-13T00:11:44.992143",
+          "public_message": "Processed 12 synthetic attendance records; 0 remaining. Process preserved. Transitioning to VERIFYING state (awaiting 2 healthy probes).",
+          "metadata_json": "{\"runner_response\": \"Processed 12 synthetic attendance records; 0 remaining. Process preserved.\"}"
+        },
+        {
+          "id": "de5076be-80c5-4932-b73f-33ebca461f96",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "sequence": 6,
+          "event_type": "VERIFICATION_PROBE_SUCCESS",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:46.742129",
+          "public_message": "Health probe check 1/2 passed (latency: 1.72ms).",
+          "metadata_json": null
+        },
+        {
+          "id": "751b1a18-8814-4835-929a-49c7809cee14",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "sequence": 7,
+          "event_type": "VERIFICATION_PROBE_SUCCESS",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:48.760045",
+          "public_message": "Health probe check 2/2 passed (latency: 1.68ms).",
+          "metadata_json": null
+        },
+        {
+          "id": "cc536c19-dbf5-4521-8bbb-573d8c4650b3",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "sequence": 8,
+          "event_type": "INCIDENT_RESOLVED",
+          "actor_type": "SYSTEM",
+          "actor_id": "verification_engine",
+          "at": "2026-11-13T00:11:48.764321",
+          "public_message": "Incident fully resolved. Recovery verified with 2 consecutive healthy probes. Measured MTTR: 4.0 seconds.",
+          "metadata_json": "{\"mttr_seconds\": 4.0}"
+        }
+      ],
+      "latest_analysis": {
+        "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+        "provider": "demo_fallback",
+        "summary": "Attendance synchronisation (demo): Attendance synchronisation queue stalled",
+        "suspected_cause": "Observed demo fault: ATTENDANCE_QUEUE_BACKLOG",
+        "evidence_event_ids": [
+          "682a77bb-3a23-4383-b6e5-fbe581d14bac",
+          "3843bc11-074e-4c20-9c80-0f5dcc737ecb",
+          "387007ee-3766-4a0a-b405-f9cd8f33c2a4",
+          "a802d5c6-1e7f-47aa-b55b-885932e4a001",
+          "54dfc312-9b46-489d-a991-8adebd3ea032"
+        ],
+        "confidence": "medium",
+        "recommended_runbook_id": "REPLAY_DEMO_ATTENDANCE_QUEUE",
+        "reasoning_summary": "Replay the bounded synthetic queue, preserve the process, then verify healthy checks.",
+        "requires_human_review": false,
+        "fallback_reason": null
+      },
+      "runbook_executions": [
+        {
+          "id": "71c236bb-410b-4349-919c-013288e494cf",
+          "incident_id": "fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "runbook_id": "REPLAY_DEMO_ATTENDANCE_QUEUE",
+          "idempotency_key": "rec_fb9a493e-8592-4a1c-9c11-92ec652f7e59",
+          "status": "SUCCESS",
+          "approval_actor_id": "autonomous_policy",
+          "started_at": "2026-11-13T00:11:44.780078",
+          "finished_at": "2026-11-13T00:11:44.986432",
+          "runner_response_redacted": "Processed 12 synthetic attendance records; 0 remaining. Process preserved."
+        }
+      ]
+    },
+    "runtime": {
+      "observed_at": "2026-11-13T00:11:49.402596+00:00",
+      "child_running": true,
+      "child_pid": 18408,
+      "mode": "normal",
+      "restart_count": 2,
+      "last_action": "attendance_replay_executed",
+      "last_action_timestamp": 1794528704.9839344
+    }
+  }
+]

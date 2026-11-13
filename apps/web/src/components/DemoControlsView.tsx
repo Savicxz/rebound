@@ -260,9 +260,8 @@ export default function DemoControlsView({
             Demo Studio
           </h1>
           <p className="mt-3 max-w-3xl text-sm text-stone-600">
-            Attendance records are stuck. Rebound runs an approved queue replay,
-            then checks that the service is healthy. Follow the problem, the
-            recovery action, and the recorded result.
+            Detect a failure. Analyze evidence. Decide safely. Recover when
+            authorized. Verify the outcome.
           </p>
         </div>
         <span className="state-tag">

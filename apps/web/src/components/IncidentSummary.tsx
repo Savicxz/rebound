@@ -239,6 +239,15 @@ export default function IncidentSummary(props: SummaryData) {
         utcTime(receipt.checked_at) >=
           utcTime(run.baseline.observed_at) - 20000),
   );
+  const queued = runReceipts.find(
+    (receipt) =>
+      receipt.stage === "during" &&
+      receipt.response.queued_records !== undefined,
+  )?.response.queued_records;
+  const attendance = [...runReceipts]
+    .reverse()
+    .find((receipt) => receipt.stage === "after" && receipt.http_status === 200)
+    ?.response.attendance;
   function print() {
     setPrintError(false);
     try {
@@ -280,6 +289,31 @@ export default function IncidentSummary(props: SummaryData) {
                 : "Automatic recovery safely blocked"
               : "The result is still pending."}
       </h3>
+      {run?.scenario_id === "attendance_backlog" && (
+        <dl
+          aria-label="Observed attendance result"
+          className="mt-3 grid grid-cols-3 gap-3"
+        >
+          <div>
+            <dt className="text-xs text-stone-600">Pending at failure</dt>
+            <dd className="text-2xl font-semibold">
+              {queued ?? "Not observed"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-stone-600">Processed afterward</dt>
+            <dd className="text-2xl font-semibold">
+              {attendance?.processed ?? "Not observed"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-stone-600">Remaining</dt>
+            <dd className="text-2xl font-semibold">
+              {attendance?.pending ?? "Not observed"}
+            </dd>
+          </div>
+        </dl>
+      )}
       <p className="mt-3 text-sm leading-relaxed text-stone-600">
         {reset
           ? "Reset is not verified recovery. The incident history remains available."

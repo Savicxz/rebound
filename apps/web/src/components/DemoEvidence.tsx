@@ -85,6 +85,49 @@ export function evidenceSteps(incident: Incident | null | undefined) {
     },
   ];
 }
+export function RecordedAnalysis({ incident }: { incident: Incident }) {
+  const analysis = incident.latest_analysis;
+  const policy = incident.events.find(
+    (event) => event.event_type === "POLICY_EVALUATED",
+  );
+  return (
+    <section
+      aria-label="Analysis and safety decision"
+      className="studio-analysis border-t border-stone-200 px-5 py-4 sm:px-6"
+    >
+      <p className="text-xs font-medium text-stone-700">
+        {providerName(incident)}
+      </p>
+      <dl className="mt-3 space-y-3 text-sm text-stone-700">
+        <div>
+          <dt className="font-semibold">Evidence assessment</dt>
+          <dd>{analysis?.summary || "Analysis has not been recorded yet."}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold">Recommended predefined action</dt>
+          <dd>
+            {analysis?.recommended_runbook_id === "REPLAY_DEMO_ATTENDANCE_QUEUE"
+              ? "Replay the synthetic attendance queue"
+              : analysis?.recommended_runbook_id ===
+                  "RESTART_DEMO_CHILD_SERVICE"
+                ? "Restart the isolated service"
+                : analysis
+                  ? "No approved action recommended; human investigation required"
+                  : "Awaiting analysis"}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-semibold">Independent policy decision</dt>
+          <dd>{policy?.public_message || "No authorization recorded yet."}</dd>
+        </div>
+      </dl>
+      <p className="mt-2 text-xs text-stone-500">
+        Analysis recommends. Deterministic policy authorizes. Only recorded
+        results are shown.
+      </p>
+    </section>
+  );
+}
 function Counter({
   count,
   threshold,
@@ -460,40 +503,45 @@ export default function DemoEvidence({
           </p>
         )}
         {compact && run && (
-          <dl
-            className="mt-5 grid grid-cols-3 gap-3 border-t border-stone-200 pt-4"
-            aria-label="Before failure and after measurements"
-          >
-            {[
-              ["Before", run.baseline],
-              ["Failure", failure],
-              [
-                review ? "Current service" : "After",
-                review ? (stale ? undefined : latest) : after,
-              ],
-            ].map(([name, value]) => {
-              const probe = value as
-                | {
-                    http_status?: number | null;
-                    latency_ms: number;
-                    observed_at?: string;
-                  }
-                | undefined;
-              return (
-                <div key={String(name)}>
-                  <dt className="ui-eyebrow">{String(name)}</dt>
-                  <dd className="mt-2 font-mono text-xs leading-relaxed">
-                    {probe
-                      ? `${probe.http_status == null ? "No response" : `HTTP ${probe.http_status}`} / ${probe.latency_ms.toFixed(1)} ms`
-                      : "Not observed"}
-                  </dd>
-                  <p className="mt-1 text-[11px] text-stone-500">
-                    {formatClock(probe?.observed_at)}
-                  </p>
-                </div>
-              );
-            })}
-          </dl>
+          <details className="mt-3">
+            <summary className="text-xs text-stone-600">
+              Request measurements
+            </summary>
+            <dl
+              className="mt-5 grid grid-cols-3 gap-3 border-t border-stone-200 pt-4"
+              aria-label="Before failure and after measurements"
+            >
+              {[
+                ["Before", run.baseline],
+                ["Failure", failure],
+                [
+                  review ? "Current service" : "After",
+                  review ? (stale ? undefined : latest) : after,
+                ],
+              ].map(([name, value]) => {
+                const probe = value as
+                  | {
+                      http_status?: number | null;
+                      latency_ms: number;
+                      observed_at?: string;
+                    }
+                  | undefined;
+                return (
+                  <div key={String(name)}>
+                    <dt className="ui-eyebrow">{String(name)}</dt>
+                    <dd className="mt-2 font-mono text-xs leading-relaxed">
+                      {probe
+                        ? `${probe.http_status == null ? "No response" : `HTTP ${probe.http_status}`} / ${probe.latency_ms.toFixed(1)} ms`
+                        : "Not observed"}
+                    </dd>
+                    <p className="mt-1 text-[11px] text-stone-500">
+                      {formatClock(probe?.observed_at)}
+                    </p>
+                  </div>
+                );
+              })}
+            </dl>
+          </details>
         )}
         {run && !compact && (
           <dl className="mt-6 grid gap-5 border-t border-stone-200 pt-5 sm:grid-cols-3">
@@ -538,6 +586,7 @@ export default function DemoEvidence({
           </dl>
         )}
       </div>
+      {compact && incident && <RecordedAnalysis incident={incident} />}
       {incident && (verified || review || reset) && (
         <IncidentSummary
           incident={incident}

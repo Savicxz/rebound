@@ -599,3 +599,45 @@ textarea {
     flex-grow: 1;
   }
 }
+
+/* Keep the judge-facing story compact; technical disclosures remain available. */
+@media (min-width: 1024px) {
+  .demo-studio .studio-workspace {
+    scroll-margin-top: 5rem;
+  }
+  .demo-studio {
+    gap: 0.75rem;
+  }
+  .demo-studio > header p:first-child {
+    display: none;
+  }
+  .demo-studio .studio-control {
+    padding: 0.75rem 1.25rem;
+  }
+  .demo-studio .studio-workspace > div > section > div:first-child {
+    padding: 0.75rem 1rem;
+  }
+  .demo-studio .studio-analysis {
+    padding: 0.75rem 1rem;
+  }
+  .demo-studio .studio-analysis dl {
+    margin-top: 0.5rem;
+  }
+  .demo-studio .studio-analysis dl > div + div {
+    margin-top: 0.5rem;
+  }
+  .demo-studio .studio-outcome {
+    margin: 0 1rem 0.75rem;
+    padding: 0.75rem;
+  }
+  .demo-studio .studio-outcome h3 {
+    margin-top: 0.5rem;
+    font-size: 1.125rem;
+  }
+  .demo-studio .studio-outcome > p {
+    margin-top: 0.5rem;
+  }
+  .demo-studio .studio-outcome > div {
+    margin-top: 0.75rem;
+  }
+}

@@ -1,5 +1,5 @@
 import { expect, test, Page } from "@playwright/test";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const screenshots = path.resolve(
@@ -279,6 +279,109 @@ test("attendance replay: actual queue drain, same PID, responsive and reduced mo
     ),
   ).toBe(true);
   await screenshot(page, "studio-attendance-mobile.png");
+});
+
+test("three consecutive attendance recoveries retain evidence and visible policy", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(180000);
+  const evidence = [];
+  for (let index = 0; index < 3; index++) {
+    const priorRun = (
+      await (await page.request.get("/api/v1/dashboard")).json()
+    ).demo_run?.id;
+    await page
+      .getByRole("button", {
+        name: index === 0 ? "Run demonstration" : "Replay this scenario",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", {
+        name: index === 0 ? "Confirm scenario" : "Confirm replay",
+        exact: true,
+      })
+      .click();
+    await expect
+      .poll(
+        async () =>
+          (await (await page.request.get("/api/v1/dashboard")).json()).demo_run
+            ?.id,
+      )
+      .not.toBe(priorRun);
+    await expect(
+      page.getByRole("heading", {
+        name: "Queue replayed. Recovery verified.",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: "Run outcome" })
+        .getByLabel("Observed attendance result"),
+    ).toContainText("Processed afterward12");
+    await expect(page.getByLabel("Observed attendance result")).toContainText(
+      "Remaining0",
+    );
+    const decision = page.getByRole("region", {
+      name: "Analysis and safety decision",
+    });
+    await expect(decision).toContainText(
+      "Deterministic demo fallback (not a live Gemini call)",
+    );
+    await expect(decision).toContainText(
+      "Replay the synthetic attendance queue",
+    );
+    await expect(decision).toContainText("Bounded recovery approved");
+    const dashboard = await (
+      await page.request.get("/api/v1/dashboard")
+    ).json();
+    const incident = await (
+      await page.request.get(
+        `/api/v1/incidents/${dashboard.demo_run.incident_id}`,
+      )
+    ).json();
+    const runtime = await (
+      await page.request.get("/api/v1/demo/runtime")
+    ).json();
+    expect(incident.state).toBe("RESOLVED");
+    expect(incident.runbook_executions).toHaveLength(1);
+    expect(incident.runbook_executions[0].status).toBe("SUCCESS");
+    expect(runtime.child_pid).toBe(dashboard.demo_run.runtime_before.child_pid);
+    expect(runtime.restart_count).toBe(
+      dashboard.demo_run.runtime_before.restart_count,
+    );
+    expect(
+      incident.events.filter(
+        (event: { event_type: string }) =>
+          event.event_type === "VERIFICATION_PROBE_SUCCESS",
+      ),
+    ).toHaveLength(2);
+    expect(evidence.map((item) => item.incident.id)).not.toContain(incident.id);
+    evidence.push({ run: dashboard.demo_run, incident, runtime });
+    await page
+      .locator("#studio-workspace")
+      .evaluate((element) =>
+        element.scrollIntoView({ block: "start", behavior: "instant" }),
+      );
+    const counts = await page
+      .getByLabel("Observed attendance result")
+      .boundingBox();
+    expect(counts!.y + counts!.height).toBeLessThanOrEqual(768);
+    await page.screenshot({
+      path: path.join(screenshots, `studio-attendance-run-${index + 1}.png`),
+      fullPage: false,
+      animations: "disabled",
+    });
+  }
+  await testInfo.attach("three-attendance-runs.json", {
+    body: JSON.stringify(evidence, null, 2),
+    contentType: "application/json",
+  });
+  await writeFile(
+    path.resolve(screenshots, "../three-attendance-runs.json"),
+    JSON.stringify(evidence, null, 2),
+  );
 });
 test("browser-to-backend disconnection: retain evidence, disable mutations, retry honestly", async ({
   page,
