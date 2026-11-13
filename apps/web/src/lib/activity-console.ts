@@ -1,6 +1,6 @@
 import { Incident, IncidentEvent } from "../types";
 
-export const PLAYBACK_INTERVAL_MS = 1700;
+export const PLAYBACK_INTERVAL_MS = 3000;
 export type ActivityTone = "failure" | "review" | "success" | "neutral";
 export interface ActivityRow {
   key: string;

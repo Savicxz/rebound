@@ -97,7 +97,7 @@ Cleanup validation: 58 Python tests, all nine Chromium tests, frontend checks, f
 
 ## Recorded operations console
 
-The backend status stays current above the console. The feed shows only committed incident events, in sequence order, with actual timestamps. New demonstrations use a labelled guided presentation at 1.7 seconds per available entry; backend processing is never delayed. If evidence has not arrived, the console waits instead of inventing a stage.
+The backend status stays current above the console. The feed shows only committed incident events, in sequence order, with actual timestamps. New demonstrations use a labelled guided presentation at 3 seconds per available entry; backend processing is never delayed. If evidence has not arrived, the console waits instead of inventing a stage.
 
 **Pause / Resume presentation** affects only the feed. **Skip to latest** shows the available committed history immediately. **Replay recorded activity** replays evidence after completion; the separate **Replay demo** button starts a new fault scenario. A completed incident opened later shows its current recorded outcome immediately. Counts still require a genuine verification-completed event and actual student-request receipts; a reload can show **Not observed** because request receipts live in browser memory.
 
@@ -118,3 +118,7 @@ These are actual isolated-stack attendance and registration runs using labelled 
 [Browser recording: attendance and safe refusal](recordings/operations-console.webm). [Mobile console](screenshots/console-mobile.png).
 
 Console validation: 58 Python tests, all 11 Chromium tests, frontend checks, formatting, and the production build passed. Coverage includes real attendance/refusal, initial completed outcomes, controlled pacing, pause/resume, skip/replay, stale evidence, reduced motion, ordering/deduplication, history gaps and missing verification. Semantic colors meet 4.5:1 contrast against the light and dark surfaces. Default presentation remains dark; theme-aware tokens also support the light palette. No backend, monitoring, runbook, policy or event-delivery code changed.
+
+The latest in-progress presentation icon now spins or gently pulses; completed icons settle. Guided rows are spaced three seconds apart, with a one-second eased internal scroll. Pause/disconnection stops presentation motion, reduced motion disables it, and wheel/touch/keyboard scrolling cancels automatic following. These timings affect presentation only.
+
+Slower-motion checks: the full 11-test browser suite passed; focused playback checks additionally verify animated active icons, settled historical icons, three-second pacing, intermediate/end positions of the one-second scroll, pause/resume halfway through scrolling, stale evidence and reduced motion. After integration with latest main, all 60 Python tests passed.
