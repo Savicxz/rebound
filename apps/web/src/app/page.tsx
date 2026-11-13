@@ -350,6 +350,25 @@ export default function Home() {
         {!currentUser.token && (
           <SignIn
             onSignIn={loginUser}
+            onStartHostedDemo={async () => {
+              const response = await fetch("/api/v1/auth/judge", {
+                method: "POST",
+                signal: AbortSignal.timeout(20000),
+              });
+              const result = await response.json();
+              if (!response.ok) {
+                throw new Error(
+                  result.detail || "Could not start the hosted demonstration.",
+                );
+              }
+              setCurrentUser({
+                username: result.user.username,
+                role: result.user.role,
+                token: result.access_token,
+              });
+              setCurrentTab("demo");
+              window.scrollTo({ top: 0, behavior: "auto" });
+            }}
             onStartDemo={async () => {
               const response = await fetch("/api/v1/auth/demo", {
                 method: "POST",
