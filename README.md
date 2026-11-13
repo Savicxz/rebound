@@ -93,7 +93,7 @@ student disruption. The queue is in memory and contains no personal data. Its re
 is a demonstration, not a durable production messaging system. Slow checks exceed
 `HEALTH_LATENCY_LIMIT_MS` (500 ms by default); client setup time is excluded.
 
-The header switches between light and dark appearance and remembers the preference.
+The interface uses dark mode automatically.
 Runtime settings are read-only and report the server configuration.
 
 ## AI providers

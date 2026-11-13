@@ -7,7 +7,15 @@ const screenshots = path.resolve(
   "../../../docs/demo-studio/screenshots",
 );
 test.beforeEach(async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.addInitScript(() =>
+    localStorage.setItem("rebound-theme", "light"),
+  );
   await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(
+    page.getByRole("button", { name: /Switch to (dark|light) mode/ }),
+  ).toHaveCount(0);
   await page
     .getByRole("button", { name: "Start local demo", exact: true })
     .click();
@@ -182,9 +190,6 @@ test("database contention: real HTTP 500, safe human review, dark mode and reset
   await expect(
     page.locator('[aria-label="Before failure and after measurements"]'),
   ).toContainText("Current service");
-  await page
-    .getByRole("button", { name: "Switch to dark mode", exact: true })
-    .click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await technical(page, false);
   await screenshot(page, "studio-human-review-dark.png");

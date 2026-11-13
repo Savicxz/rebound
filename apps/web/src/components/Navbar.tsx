@@ -2,7 +2,6 @@
 
 import React from "react";
 import { User } from "lucide-react";
-import ThemeToggle from "./ThemeToggle";
 
 interface NavbarProps {
   currentTab: string;
@@ -59,7 +58,6 @@ export default function Navbar({
           ))}
         </nav>
         <div className="flex items-center gap-4">
-          <ThemeToggle />
           <p
             role="status"
             className="flex items-center gap-2 text-xs text-stone-500"
