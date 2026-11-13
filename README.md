@@ -57,7 +57,7 @@ Do not commit `.env`, database files or credentials.
 2. Run the default attendance story: twelve synthetic records enter a stalled queue.
    Rebound permits a bounded replay; the response reports zero pending and twelve processed.
    Two successful independent health checks verify recovery without restarting the process.
-3. Review the plain-language outcome. Expand **Advanced technical evidence** for
+3. Review the plain-language outcome. Expand **Technical details** for
    process observations, probe receipts, analysis source and the event journal.
    A successful action alone does not prove recovery.
 4. Compare student-request receipts and before/failure/after observations. Print the
@@ -93,7 +93,7 @@ student disruption. The queue is in memory and contains no personal data. Its re
 is a demonstration, not a durable production messaging system. Slow checks exceed
 `HEALTH_LATENCY_LIMIT_MS` (500 ms by default); client setup time is excluded.
 
-The header switches between light and dark appearance and remembers the preference.
+The interface uses dark mode automatically.
 Runtime settings are read-only and report the server configuration.
 
 ## AI providers

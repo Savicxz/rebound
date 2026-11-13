@@ -212,9 +212,9 @@ demoData.active_incident = {
   runbook_executions: [],
 };
 assert.match(renderDemo(demoData), /Blocked for human review/);
-assert.match(renderDemo(demoData), /Human review required/);
-assert.match(renderDemo(demoData), /Demo Studio/);
-assert.match(renderDemo(demoData), /Download evidence JSON/);
+assert.match(renderDemo(demoData), /Human investigation required/);
+assert.match(renderDemo(demoData), /Recover stalled services/);
+assert.match(renderDemo(demoData), /Technical details/);
 const newRun = renderDemo({
   ...demoData,
   demo_run: {
@@ -231,10 +231,10 @@ const newRun = renderDemo({
 });
 assert.match(newRun, /Waiting for health checks/);
 assert.doesNotMatch(newRun, /demo-1/);
-assert.match(newRun, /0 of 3 failed checks recorded/);
+assert.match(newRun, /aria-valuenow="0"/);
 assert.match(
   renderDemo(demoData),
-  /No real school infrastructure, student records/,
+  /Synthetic data \/ no real university connection/,
 );
 console.log(
   "Demo checks passed: loading, fault detection, escalation and scenario instructions.",
@@ -581,6 +581,17 @@ const reviewing = renderEvidence(
 assert.match(reviewing, /Human review required/);
 assert.match(reviewing, /Blocked for human review/);
 assert.doesNotMatch(reviewing, /activity-ring/);
+const attemptedReview = renderEvidence(
+  withIncident({
+    ...analysis,
+    state: "ESCALATED",
+    auto_recovery_attempted: true,
+    runbook_executions: [],
+  }),
+  { compact: true },
+);
+assert.match(attemptedReview, /Recovery needs human attention/);
+assert.doesNotMatch(attemptedReview, /Automatic recovery safely blocked/);
 const resetEvidence = renderEvidence({
   ...withIncident(resolved),
   demo_run: { ...liveData.demo_run, incident_id: resolved.id, reset_at: now },

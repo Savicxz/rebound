@@ -13,6 +13,7 @@ import {
 
 export interface SummaryData {
   incident: Incident;
+  view?: "full" | "outcome" | "technical";
   run?: DemoRun | null;
   scenario: string;
   checks: HealthObservation[];
@@ -266,120 +267,133 @@ export default function IncidentSummary(props: SummaryData) {
     <section
       id="studio-outcome"
       className={`studio-outcome m-5 rounded-xl border border-stone-300 p-5 sm:m-6 ${review ? "border-dashed" : ""}`}
-      aria-label="Run outcome"
+      aria-label={
+        props.view === "technical" ? "Recovery receipt" : "Run outcome"
+      }
     >
-      <p className="ui-eyebrow">03 / What changed</p>
-      <h3 className="mt-3 flex items-center gap-2 text-xl font-semibold">
-        {verified && !reset ? (
-          <Check aria-hidden="true" className="h-6 w-6" />
-        ) : (
-          <Pause aria-hidden="true" className="h-5 w-5" />
+      {props.view !== "outcome" && props.view !== "technical" && (
+        <>
+          <p className="ui-eyebrow">03 / What changed</p>
+          <h3 className="mt-3 flex items-center gap-2 text-xl font-semibold">
+            {verified && !reset ? (
+              <Check aria-hidden="true" className="h-6 w-6" />
+            ) : (
+              <Pause aria-hidden="true" className="h-5 w-5" />
+            )}
+            {reset
+              ? "Run reset. Evidence retained."
+              : verified
+                ? run?.scenario_id === "attendance_backlog"
+                  ? "Queue replayed. Recovery verified."
+                  : run?.scenario_id === "crash"
+                    ? "Portal restored. Recovery verified."
+                    : "Service recovery verified."
+                : review
+                  ? attempted
+                    ? "Recovery needs human attention."
+                    : "Automatic recovery safely blocked"
+                  : "The result is still pending."}
+          </h3>
+        </>
+      )}
+      {props.view !== "technical" &&
+        run?.scenario_id === "attendance_backlog" && (
+          <dl
+            aria-label="Observed attendance result"
+            className="mt-3 grid grid-cols-3 gap-3"
+          >
+            <div>
+              <dt className="text-xs text-stone-600">Pending at failure</dt>
+              <dd className="text-2xl font-semibold">
+                {queued ?? "Not observed"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-600">Processed afterward</dt>
+              <dd className="text-2xl font-semibold">
+                {attendance?.processed ?? "Not observed"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-600">Remaining</dt>
+              <dd className="text-2xl font-semibold">
+                {attendance?.pending ?? "Not observed"}
+              </dd>
+            </div>
+          </dl>
         )}
-        {reset
-          ? "Run reset. Evidence retained."
-          : verified
-            ? run?.scenario_id === "attendance_backlog"
-              ? "Queue replayed. Recovery verified."
-              : run?.scenario_id === "crash"
-                ? "Portal restored. Recovery verified."
-                : "Service recovery verified."
-            : review
-              ? attempted
-                ? "Recovery needs human attention."
-                : "Automatic recovery safely blocked"
-              : "The result is still pending."}
-      </h3>
-      {run?.scenario_id === "attendance_backlog" && (
-        <dl
-          aria-label="Observed attendance result"
-          className="mt-3 grid grid-cols-3 gap-3"
-        >
-          <div>
-            <dt className="text-xs text-stone-600">Pending at failure</dt>
-            <dd className="text-2xl font-semibold">
-              {queued ?? "Not observed"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-stone-600">Processed afterward</dt>
-            <dd className="text-2xl font-semibold">
-              {attendance?.processed ?? "Not observed"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-stone-600">Remaining</dt>
-            <dd className="text-2xl font-semibold">
-              {attendance?.pending ?? "Not observed"}
-            </dd>
-          </div>
-        </dl>
-      )}
-      <p className="mt-3 text-sm leading-relaxed text-stone-600">
-        {reset
-          ? "Reset is not verified recovery. The incident history remains available."
-          : verified
-            ? `Recovery took ${measuredRecovery(incident)} from incident detection. Independent probes confirmed the result.`
-            : review
-              ? attempted
-                ? "A recovery action was attempted, but independent verification has not confirmed recovery. Review the recorded execution and incident evidence."
-                : "Rebound detected the failure, preserved the evidence, and prevented an unapproved restart. Human investigation is required."
-              : "An execution receipt alone does not prove recovery. Wait for the verification result."}
-      </p>
-      {action?.status === "SUCCESS" && !reset && (
-        <p className="mt-3 text-sm font-medium text-stone-800">
-          {action.runbook_id === "REPLAY_DEMO_ATTENDANCE_QUEUE"
-            ? "Approved action completed: replay the synthetic attendance queue."
-            : "Approved action completed: restart the isolated service."}
-        </p>
-      )}
-      <p className="mt-2 text-xs text-stone-500">{providerName(incident)}</p>
-      <details className="mt-3 border-t border-stone-200 pt-2">
-        <summary className="text-sm text-stone-600">
-          Recovery execution details
-        </summary>
-        <p className="mt-4 text-xs leading-relaxed text-stone-500">
-          {action
-            ? `${action.runbook_id}: ${action.status}. ${action.runner_response_redacted || ""}`
-            : "No recovery action recorded."}
-        </p>
-        {run && (
+      {props.view !== "outcome" && (
+        <>
+          <p className="mt-3 text-sm leading-relaxed text-stone-600">
+            {reset
+              ? "Reset is not verified recovery. The incident history remains available."
+              : verified
+                ? `Recovery took ${measuredRecovery(incident)} from incident detection. Independent probes confirmed the result.`
+                : review
+                  ? attempted
+                    ? "A recovery action was attempted, but independent verification has not confirmed recovery. Review the recorded execution and incident evidence."
+                    : "Rebound detected the failure, preserved the evidence, and prevented an unapproved restart. Human investigation is required."
+                  : "An execution receipt alone does not prove recovery. Wait for the verification result."}
+          </p>
+          {action?.status === "SUCCESS" && !reset && (
+            <p className="mt-3 text-sm font-medium text-stone-800">
+              {action.runbook_id === "REPLAY_DEMO_ATTENDANCE_QUEUE"
+                ? "Approved action completed: replay the synthetic attendance queue."
+                : "Approved action completed: restart the isolated service."}
+            </p>
+          )}
           <p className="mt-2 text-xs text-stone-500">
-            PID before: {run.runtime_before.child_pid ?? "not recorded"} /
-            latest observed:{" "}
-            {runtime?.child_pid ??
-              (runtime && !runtime.child_running
-                ? "stopped"
-                : "not available")}{" "}
-            {stale ? "/ evidence may be stale" : ""}
+            {providerName(incident)}
           </p>
-        )}
-        {review && !attempted && (
+          <details className="mt-3 border-t border-stone-200 pt-2">
+            <summary className="text-sm text-stone-600">
+              Recovery execution details
+            </summary>
+            <p className="mt-4 text-xs leading-relaxed text-stone-500">
+              {action
+                ? `${action.runbook_id}: ${action.status}. ${action.runner_response_redacted || ""}`
+                : "No recovery action recorded."}
+            </p>
+            {run && (
+              <p className="mt-2 text-xs text-stone-500">
+                PID before: {run.runtime_before.child_pid ?? "not recorded"} /
+                latest observed:{" "}
+                {runtime?.child_pid ??
+                  (runtime && !runtime.child_running
+                    ? "stopped"
+                    : "not available")}{" "}
+                {stale ? "/ evidence may be stale" : ""}
+              </p>
+            )}
+            {review && !attempted && (
+              <p className="mt-3 text-sm text-stone-600">
+                <strong>Policy decision:</strong>{" "}
+                {incident.events.find(
+                  (event) => event.event_type === "POLICY_EVALUATED",
+                )?.public_message || "No policy verdict recorded."}
+              </p>
+            )}
+          </details>
           <p className="mt-3 text-sm text-stone-600">
-            <strong>Policy decision:</strong>{" "}
-            {incident.events.find(
-              (event) => event.event_type === "POLICY_EVALUATED",
-            )?.public_message || "No policy verdict recorded."}
+            {verified && !reset
+              ? run?.scenario_id === "attendance_backlog"
+                ? "Check the attendance response for pending and processed counts. Health verification is separate from that request."
+                : "Operational value: service access restored with a bounded action and independently checked evidence."
+              : review
+                ? "Operational value: an uncertain fault stays under human control; no recovery is assumed."
+                : "Evidence remains available for investigation."}
           </p>
-        )}
-      </details>
-      <p className="mt-3 text-sm text-stone-600">
-        {verified && !reset
-          ? run?.scenario_id === "attendance_backlog"
-            ? "Check the attendance response for pending and processed counts. Health verification is separate from that request."
-            : "Operational value: service access restored with a bounded action and independently checked evidence."
-          : review
-            ? "Operational value: an uncertain fault stays under human control; no recovery is assumed."
-            : "Evidence remains available for investigation."}
-      </p>
-      <div className="mt-4">{props.actions}</div>
-      <button className="ui-button mt-3" onClick={print}>
-        <Printer aria-hidden="true" className="h-4 w-4" />
-        Print incident summary
-      </button>
-      {printError && (
-        <p role="alert" className="mt-2 text-sm">
-          Printing could not be opened. Retry or use the JSON export.
-        </p>
+          <div className="mt-4">{props.actions}</div>
+          <button className="ui-button mt-3" onClick={print}>
+            <Printer aria-hidden="true" className="h-4 w-4" />
+            Print incident summary
+          </button>
+          {printError && (
+            <p role="alert" className="mt-2 text-sm">
+              Printing could not be opened. Retry or use the JSON export.
+            </p>
+          )}
+        </>
       )}
       {snapshot &&
         createPortal(

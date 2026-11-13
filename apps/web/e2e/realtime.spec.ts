@@ -23,7 +23,10 @@ test("event bursts coalesce, duplicate revisions are ignored, navigation aborts 
     .getByRole("button", { name: "Start local demo", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Demo Studio", exact: true }),
+    page.getByRole("heading", {
+      name: "Recover stalled services",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Refresh data", exact: true }),
@@ -108,7 +111,10 @@ test("incident history loads summaries and fetches full evidence only on selecti
     .getByRole("button", { name: "Start local demo", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Demo Studio", exact: true }),
+    page.getByRole("heading", {
+      name: "Recover stalled services",
+      exact: true,
+    }),
   ).toBeVisible();
   expect((await page.request.post("/api/v1/demo/reset")).ok()).toBeTruthy();
   await expect

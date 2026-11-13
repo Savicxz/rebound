@@ -641,3 +641,34 @@ textarea {
     margin-top: 0.75rem;
   }
 }
+
+/* Minimal Studio presentation; engineering tools remain in one disclosure. */
+.demo-studio .studio-control > div:first-child {
+  min-width: 0;
+}
+.demo-studio #studio-scenario {
+  width: 100%;
+  white-space: normal;
+}
+.demo-studio .studio-outcome {
+  border: 0;
+  margin: 0;
+  padding: 0 1.25rem 1rem;
+  animation: none;
+}
+.demo-studio .studio-analysis dl > div + div {
+  margin-top: 0;
+}
+.demo-studio .studio-analysis {
+  padding: 1rem 1.25rem;
+}
+.demo-studio .studio-analysis dd {
+  margin-top: 0.375rem;
+  line-height: 1.5;
+}
+.demo-studio > header h1 {
+  margin-top: 0;
+}
+.demo-studio > header p {
+  display: block !important;
+}

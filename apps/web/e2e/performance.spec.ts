@@ -37,7 +37,10 @@ test("repeatable live performance sample", async ({ page }, testInfo) => {
     .getByRole("button", { name: "Start local demo", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Demo Studio", exact: true }),
+    page.getByRole("heading", {
+      name: "Recover stalled services",
+      exact: true,
+    }),
   ).toBeVisible();
   let dashboardRequests = 0,
     incidentRequests = 0,
@@ -75,9 +78,6 @@ test("repeatable live performance sample", async ({ page }, testInfo) => {
       await (await page.request.get("/api/v1/dashboard")).json()
     ).demo_run;
     await expect(
-      page.getByText(injectedRun.id.slice(0, 8), { exact: true }),
-    ).toBeVisible();
-    await expect(
       page.getByRole("heading", {
         name: "Portal restored. Recovery verified.",
         exact: true,
@@ -108,7 +108,7 @@ test("repeatable live performance sample", async ({ page }, testInfo) => {
     });
   }
   // Commit-return to a rendered recorded event, with the timeline already expanded.
-  await page.getByText("Advanced technical evidence", { exact: true }).click();
+  await page.getByText("Technical details", { exact: true }).click();
   await page.getByText(/Incident event timeline \(/).click();
   const data = await (await page.request.get("/api/v1/dashboard")).json();
   expect(
