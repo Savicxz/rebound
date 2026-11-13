@@ -11,15 +11,14 @@
 ## Open the hosted demo
 
 1. Visit **[Rebound on Railway](https://rebound-production-1974d3f6.up.railway.app)**.
-2. Expand **Account access for other deployments**.
-3. Enter the credentials supplied by the project owner:
-   - **Administrator username:** `admin`
-   - **Administrator password:** provided privately — **not published in this public repository**
-4. Click **Sign in**, then open **Demo Studio**.
+2. Click **Try hosted demo**. No password is needed for the synthetic judging experience.
+3. Rebound opens **Demo Studio** with a restricted **operator** session, where judges can run the three isolated scenarios.
 
-**Important:** The **Start local demo** button is for `localhost` only and deliberately cannot sign users in on the hosted Railway deployment. On the hosted website, use the account form instead.
+**For project administrators:** Expand **Administrator or existing account sign-in** and use your private credentials (administrator username: `admin`). Administrator passwords are **not** published in this repository or displayed on the website.
 
-The hosted administrator credential is configured for the **api** service in Railway (`ADMIN_PASSWORD`). For judges, share credentials through a private channel, or create a dedicated limited-access operator account. **Never commit real passwords, tokens, or `.env` files.** Account passwords are hashed and seeded when first created: changing `ADMIN_PASSWORD` afterward does **not** rotate the existing account automatically.
+**Access boundaries:** Public judge access is opt-in on the hosted API (`PUBLIC_JUDGE_ACCESS=true` and `PUBLIC_JUDGE_ORIGIN=https://rebound-production-1974d3f6.up.railway.app`). The one-click judge account has only `OPERATOR` permissions, not `ADMIN`; backend policy continues to control every recovery action. Admission to new sessions is rate-limited. This is a shared synthetic demo: multiple visitors can affect the same simulated workload and reset it. No real university data is connected.
+
+The **Start local demo** button remains available on `localhost` only. **Never commit real passwords, tokens, or `.env` files.** Account passwords are seeded when first created; changing the `ADMIN_PASSWORD` variable alone does **not** rotate an existing account.
 
 ## What to demonstrate
 

@@ -366,3 +366,67 @@ async def test_quick_demo_rejects_nonlocal_requests(peer, origin, forwarded):
             headers={"Origin": origin, "X-Forwarded-For": forwarded},
         )
         assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_hosted_judge_access_is_opt_in_and_operator_only(monkeypatch):
+    from services.api.main import judge_access_attempts
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "PUBLIC_JUDGE_ACCESS", False)
+    monkeypatch.setattr(
+        settings, "PUBLIC_JUDGE_ORIGIN", "https://demo.example.com"
+    )
+    judge_access_attempts.clear()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="https://demo.example.com") as client:
+        denied = await client.post(
+            "/api/v1/auth/judge", headers={"Origin": "https://demo.example.com"}
+        )
+        assert denied.status_code == 403
+
+        monkeypatch.setattr(settings, "PUBLIC_JUDGE_ACCESS", True)
+        wrong_origin = await client.post(
+            "/api/v1/auth/judge", headers={"Origin": "https://attacker.example.com"}
+        )
+        assert wrong_origin.status_code == 403
+        missing_origin = await client.post("/api/v1/auth/judge")
+        assert missing_origin.status_code == 403
+
+        session = await client.post(
+            "/api/v1/auth/judge",
+            headers={"Origin": "https://demo.example.com", "Sec-Fetch-Site": "same-origin"},
+        )
+        assert session.status_code == 200
+        assert session.json()["user"]["role"] == "OPERATOR"
+        assert session.json()["user"]["username"] == settings.OPERATOR_USERNAME
+
+        admin_action = await client.post(
+            "/api/v1/incidents/nonexistent/approve-runbook",
+            json={"runbook_id": "RESTART_DEMO_CHILD_SERVICE"},
+            headers={"Authorization": f"Bearer {session.json()['access_token']}"},
+        )
+        assert admin_action.status_code == 403
+
+        for _ in range(11):
+            accepted = await client.post(
+                "/api/v1/auth/judge", headers={"Origin": "https://demo.example.com"}
+            )
+            assert accepted.status_code == 200
+        limited = await client.post(
+            "/api/v1/auth/judge", headers={"Origin": "https://demo.example.com"}
+        )
+        assert limited.status_code == 429
+    judge_access_attempts.clear()
+
+
+@pytest.mark.asyncio
+async def test_hosted_judge_cannot_run_in_local_demo_mode(monkeypatch):
+    monkeypatch.setattr(settings, "ENVIRONMENT", "demo")
+    monkeypatch.setattr(settings, "PUBLIC_JUDGE_ACCESS", True)
+    monkeypatch.setattr(settings, "PUBLIC_JUDGE_ORIGIN", "https://demo.example.com")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://demo.example.com") as client:
+        response = await client.post(
+            "/api/v1/auth/judge", headers={"Origin": "https://demo.example.com"}
+        )
+        assert response.status_code == 403

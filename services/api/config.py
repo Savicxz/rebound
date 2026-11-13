@@ -5,6 +5,8 @@ from pydantic import model_validator, Field
 class Settings(BaseSettings):
     ENVIRONMENT: str = "demo"
     LOCAL_DEMO_ACCESS: bool = True
+    PUBLIC_JUDGE_ACCESS: bool = False
+    PUBLIC_JUDGE_ORIGIN: str = ""
     SIMULATION_LABEL: str = "SIMULATED SERVICE - NOT CONNECTED TO LIVE SYSTEMS"
     APP_PORT: int = 8000
     WEB_PORT: int = 3000
