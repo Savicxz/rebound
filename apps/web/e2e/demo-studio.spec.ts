@@ -114,9 +114,9 @@ test("learning portal: onboarding, failure, recovery, print, JSON and replay", a
   expect(runtime.child_pid).not.toBe(
     dashboard.demo_run.runtime_before.child_pid,
   );
-  await expect(
-    page.getByRole("region", { name: "Analysis and safety decision" }),
-  ).toContainText("not a live Gemini call");
+  await expect(page.locator(".activity-console")).toContainText(
+    "not a live Gemini call",
+  );
   await technical(page, false);
   await screenshot(page, "studio-crash-verified.png");
   await technical(page, true);
@@ -356,9 +356,7 @@ test("three consecutive attendance recoveries retain evidence and visible policy
     await expect(page.getByLabel("Observed attendance result")).toContainText(
       "Remaining0",
     );
-    const decision = page.getByRole("region", {
-      name: "Analysis and safety decision",
-    });
+    const decision = page.locator(".activity-console");
     await expect(decision).toContainText(
       "Deterministic demo fallback (not a live Gemini call)",
     );

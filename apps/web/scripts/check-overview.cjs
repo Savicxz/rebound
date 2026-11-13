@@ -792,3 +792,148 @@ const failedActionMarkup = renderToStaticMarkup(
 );
 assert.match(failedActionMarkup, /Recovery needs human attention/);
 assert.doesNotMatch(failedActionMarkup, /Unsafe restart prevented/);
+
+// Activity presentation fixtures: never substitute these for live demo evidence.
+const activity = loadView("../lib/activity-console");
+const consoleView = loadView("ActivityConsole");
+const eventTypes = [
+  "INCIDENT_OPENED",
+  "ANALYSIS_COMPLETED",
+  "POLICY_EVALUATED",
+  "RECOVERY_STARTED",
+  "RECOVERY_ACTION_COMPLETED",
+  "VERIFICATION_PROBE_SUCCESS",
+  "VERIFICATION_PROBE_SUCCESS",
+  "INCIDENT_RESOLVED",
+];
+const activityEvents = eventTypes.map((event_type, index) => ({
+  id: `activity-${index + 1}`,
+  incident_id: incident.id,
+  sequence: index + 1,
+  event_type,
+  at: now,
+  public_message:
+    index === 5
+      ? "Health probe check 1/2 passed"
+      : index === 6
+        ? "Health probe check 2/2 passed"
+        : "Recorded fixture evidence",
+  metadata_json: JSON.stringify(
+    event_type === "POLICY_EVALUATED"
+      ? { allowed: true }
+      : event_type === "ANALYSIS_COMPLETED"
+        ? {
+            summary: "Recorded queue backlog",
+            recommended_runbook_id: "REPLAY_DEMO_ATTENDANCE_QUEUE",
+          }
+        : {},
+  ),
+}));
+const consoleIncident = {
+  ...analysis,
+  state: "RESOLVED",
+  resolved_at: now,
+  events: [...activityEvents]
+    .reverse()
+    .concat(
+      activityEvents[0],
+      { ...activityEvents[1], id: "duplicate-sequence" },
+      { ...activityEvents[0], incident_id: "another-incident" },
+    ),
+};
+const rows = activity.activityRows(consoleIncident);
+assert.equal(rows.length, 8);
+assert.deepEqual(
+  rows.map((row) => row.sequence),
+  [1, 2, 3, 4, 5, 6, 7, 8],
+);
+assert.equal(rows[5].title, "First verification check");
+assert.equal(rows[6].title, "Second verification check");
+assert.equal(activity.hasHistoryGap(activityEvents, incident.id), false);
+assert.equal(
+  activity.hasHistoryGap([activityEvents[0], activityEvents[2]], incident.id),
+  true,
+);
+assert.deepEqual(
+  activity
+    .mergeActivity([rows[2]], [rows[0], rows[1]], incident.id)
+    .map((row) => row.sequence),
+  [1, 2, 3],
+);
+assert.equal(activity.mergeActivity(rows, rows, incident.id), rows);
+const refusal = activity.activityRows({
+  ...consoleIncident,
+  state: "AWAITING_APPROVAL",
+  events: [
+    ...activityEvents.slice(0, 3),
+    { ...activityEvents[3], event_type: "HUMAN_REVIEW_REQUIRED" },
+  ],
+});
+assert.equal(refusal.at(-1).title, "Human investigation required");
+assert.ok(
+  refusal.every(
+    (row) =>
+      ![
+        "RECOVERY_STARTED",
+        "INCIDENT_RESOLVED",
+        "VERIFICATION_PROBE_SUCCESS",
+      ].includes(row.type),
+  ),
+);
+const initialCompleted = renderToStaticMarkup(
+  React.createElement(
+    consoleView.default,
+    { incident: consoleIncident },
+    "Recorded outcome",
+  ),
+);
+assert.match(initialCompleted, /Recorded outcome/);
+assert.match(initialCompleted, /Replay recorded activity/);
+const fastGuided = renderToStaticMarkup(
+  React.createElement(
+    consoleView.default,
+    { incident: consoleIncident, guided: true },
+    "Recorded outcome",
+  ),
+);
+assert.doesNotMatch(fastGuided, /Recorded outcome/);
+assert.match(fastGuided, /Guided playback of committed evidence/);
+const missingVerification = renderToStaticMarkup(
+  React.createElement(
+    consoleView.default,
+    { incident: { ...consoleIncident, events: activityEvents.slice(0, 7) } },
+    "Recorded outcome",
+  ),
+);
+assert.doesNotMatch(missingVerification, /Recorded outcome/);
+assert.match(
+  missingVerification,
+  /verification-completed event is unavailable/,
+);
+console.log(
+  "Activity console checks passed: ordering, deduplication, late evidence, refusal, fast completion and missing verification.",
+);
+
+const activityLight = themeCss.match(
+  /:root\s*\{(\s*--activity-success:[^}]+)\}/,
+)[1];
+const activityDark = themeCss.match(
+  /:root\[data-theme="dark"\]\s*\{(\s*--activity-success:[^}]+)\}/,
+)[1];
+for (const [palette, semantic] of [
+  [lightPalette, activityLight],
+  [darkPalette, activityDark],
+]) {
+  for (const name of [
+    "activity-success",
+    "activity-review",
+    "activity-failure",
+  ]) {
+    const fg = luminance(rgbVariable(semantic, name)),
+      bg = luminance(rgbVariable(palette, "surface-bg"));
+    assert.ok(
+      (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05) >= 4.5,
+      `${name} contrast`,
+    );
+  }
+}
