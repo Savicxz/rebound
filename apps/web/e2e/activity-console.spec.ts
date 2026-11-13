@@ -185,10 +185,16 @@ test("completed incident, pacing, pause/resume, skip, replay, stale evidence and
       exact: true,
     }),
   ).toBeVisible();
-  await page.clock.runFor(1699);
+  await page.clock.runFor(2999);
   await expect(entries).toHaveCount(0);
   await page.clock.runFor(1);
   await expect(entries).toHaveCount(1);
+  expect(
+    await entries
+      .last()
+      .locator(".activity-mark svg")
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe("activity-icon-emphasis");
   await page
     .getByRole("button", { name: "Pause presentation", exact: true })
     .click();
@@ -197,7 +203,7 @@ test("completed incident, pacing, pause/resume, skip, replay, stale evidence and
   await page
     .getByRole("button", { name: "Resume presentation", exact: true })
     .click();
-  await page.clock.runFor(1700);
+  await page.clock.runFor(3000);
   await expect(entries).toHaveCount(2);
   await page.route("**/api/v1/dashboard", (route) => route.abort("failed"));
   await page.getByRole("button", { name: "Refresh data", exact: true }).click();
@@ -225,13 +231,80 @@ test("completed incident, pacing, pause/resume, skip, replay, stale evidence and
   await page
     .getByRole("button", { name: "Resume presentation", exact: true })
     .click();
-  await page.clock.runFor(1700);
+  await page.clock.runFor(3000);
   await expect(entries).toHaveCount(3);
+  expect(
+    await entries
+      .last()
+      .locator(".activity-mark svg")
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe("activity-icon-emphasis");
   await page
     .getByRole("button", { name: "Skip to latest", exact: true })
     .click();
   await expect(entries).toHaveCount(8);
   await expect(page.getByLabel("Observed attendance result")).toBeVisible();
+  await page.clock.runFor(500);
+  const midScroll = await page
+    .locator(".activity-feed")
+    .evaluate((element) => ({
+      position: element.scrollTop,
+      end: element.scrollHeight - element.clientHeight,
+    }));
+  expect(midScroll.position).toBeGreaterThan(0);
+  expect(midScroll.position).toBeLessThan(midScroll.end);
+  await page.clock.runFor(600);
+  expect(
+    await page
+      .locator(".activity-feed")
+      .evaluate((element) =>
+        Math.abs(
+          element.scrollTop - (element.scrollHeight - element.clientHeight),
+        ),
+      ),
+  ).toBeLessThan(2);
+  expect(
+    await entries
+      .first()
+      .locator(".activity-mark svg")
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe("none");
+  await page
+    .getByRole("button", { name: "Replay recorded activity", exact: true })
+    .click();
+  for (let count = 1; count <= 5; count++) {
+    await page.clock.runFor(3000);
+    await expect(entries).toHaveCount(count);
+  }
+  await page.clock.runFor(500);
+  const pausedPosition = await page
+    .locator(".activity-feed")
+    .evaluate((element) => element.scrollTop);
+  await page
+    .getByRole("button", { name: "Pause presentation", exact: true })
+    .click();
+  await page.clock.runFor(2000);
+  expect(
+    await page
+      .locator(".activity-feed")
+      .evaluate((element) => element.scrollTop),
+  ).toBe(pausedPosition);
+  await page
+    .getByRole("button", { name: "Resume presentation", exact: true })
+    .click();
+  await page.clock.runFor(1100);
+  expect(
+    await page
+      .locator(".activity-feed")
+      .evaluate((element) =>
+        Math.abs(
+          element.scrollTop - (element.scrollHeight - element.clientHeight),
+        ),
+      ),
+  ).toBeLessThan(2);
+  await page
+    .getByRole("button", { name: "Skip to latest", exact: true })
+    .click();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page
     .getByRole("button", { name: "Replay recorded activity", exact: true })
@@ -243,6 +316,12 @@ test("completed incident, pacing, pause/resume, skip, replay, stale evidence and
   expect(
     await entries
       .first()
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe("none");
+  expect(
+    await entries
+      .first()
+      .locator(".activity-mark svg")
       .evaluate((element) => getComputedStyle(element).animationName),
   ).toBe("none");
 });

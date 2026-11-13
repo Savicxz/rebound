@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Check, Circle, Pause, AlertTriangle, ArrowRight } from "lucide-react";
+import {
+  Check,
+  Circle,
+  Pause,
+  AlertTriangle,
+  ArrowRight,
+  LoaderCircle,
+} from "lucide-react";
 import { Incident } from "../types";
 import {
   activityRows,
@@ -36,6 +43,7 @@ export default function ActivityConsole({
   const [reduced, setReduced] = useState(false);
   const feed = useRef<HTMLOListElement>(null);
   const follow = useRef(true);
+  const scrollFrame = useRef<number | null>(null);
   useEffect(() => {
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
     const sync = () => setReduced(preference.matches);
@@ -75,12 +83,33 @@ export default function ActivityConsole({
   const shown = rows.filter((row) => visible.includes(row.key));
   const signature = shown.map((row) => row.key).join("|");
   useEffect(() => {
-    if (follow.current && feed.current)
-      feed.current.scrollTo({
-        top: feed.current.scrollHeight,
-        behavior: reduced ? "auto" : "smooth",
-      });
-  }, [signature, reduced]);
+    const element = feed.current;
+    if (!follow.current || !element || paused || stale) return;
+    const target = Math.max(0, element.scrollHeight - element.clientHeight);
+    const start = element.scrollTop;
+    if (reduced) {
+      element.scrollTop = target;
+      return;
+    }
+    const started = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - started) / 1000);
+      const eased = progress * progress * (3 - 2 * progress);
+      element.scrollTop = start + (target - start) * eased;
+      scrollFrame.current = progress < 1 ? requestAnimationFrame(step) : null;
+    };
+    scrollFrame.current = requestAnimationFrame(step);
+    return () => {
+      if (scrollFrame.current !== null)
+        cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = null;
+    };
+  }, [signature, reduced, paused, stale]);
+  function stopAutoScroll() {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = null;
+    follow.current = false;
+  }
   const terminal =
     !!incident &&
     ["RESOLVED", "AWAITING_APPROVAL", "ESCALATED", "CLOSED"].includes(
@@ -109,6 +138,7 @@ export default function ActivityConsole({
   return (
     <section
       className="activity-console"
+      data-motion={paused || stale ? "paused" : reduced ? "reduced" : "running"}
       aria-label="Analysis and safety decision"
     >
       <header className="activity-console-header">
@@ -167,48 +197,88 @@ export default function ActivityConsole({
         aria-label="Recorded activity"
         aria-live="off"
         tabIndex={0}
+        onWheel={stopAutoScroll}
+        onPointerDown={stopAutoScroll}
+        onTouchStart={stopAutoScroll}
+        onKeyDown={(event) => {
+          if (
+            [
+              "ArrowUp",
+              "ArrowDown",
+              "PageUp",
+              "PageDown",
+              "Home",
+              "End",
+            ].includes(event.key)
+          )
+            stopAutoScroll();
+        }}
         onScroll={() => {
           const element = feed.current;
-          if (element)
+          if (
+            element &&
+            !follow.current &&
+            scrollFrame.current === null &&
+            !paused &&
+            !stale
+          )
             follow.current =
               element.scrollHeight - element.scrollTop - element.clientHeight <
               48;
         }}
       >
-        {shown.map((row, index) => (
-          <li
-            key={row.key}
-            data-event-type={row.type}
-            data-sequence={row.sequence}
-            data-tone={row.tone}
-            className={`activity-entry ${index === shown.length - 1 ? "activity-latest" : "activity-history"}`}
-          >
-            <time
-              dateTime={Number.isFinite(utcTime(row.at)) ? row.at : undefined}
+        {shown.map((row, index) => {
+          const animated =
+            index === shown.length - 1 &&
+            ((presenting && !finished) || waitingForEvidence) &&
+            !paused &&
+            !stale &&
+            !reduced;
+          const spinning =
+            animated &&
+            (row.tone === "neutral" || row.type === "RECOVERY_STARTED");
+          return (
+            <li
+              key={row.key}
+              data-event-type={row.type}
+              data-sequence={row.sequence}
+              data-tone={row.tone}
+              className={`activity-entry ${index === shown.length - 1 ? "activity-latest" : "activity-history"}`}
             >
-              {Number.isFinite(utcTime(row.at))
-                ? formatClock(row.at)
-                : "Time not recorded"}
-            </time>
-            <span className="activity-mark" aria-hidden="true">
-              {row.tone === "failure" ? (
-                <AlertTriangle />
-              ) : row.tone === "review" ? (
-                <Pause />
-              ) : row.tone === "success" ? (
-                <Check />
-              ) : (
-                <Circle />
-              )}
-            </span>
-            <div>
-              <h3 className="font-medium">{row.title}</h3>
-              {row.detail && (
-                <p className="mt-1 text-xs leading-relaxed">{row.detail}</p>
-              )}
-            </div>
-          </li>
-        ))}
+              <time
+                dateTime={Number.isFinite(utcTime(row.at)) ? row.at : undefined}
+              >
+                {Number.isFinite(utcTime(row.at))
+                  ? formatClock(row.at)
+                  : "Time not recorded"}
+              </time>
+              <span
+                className={`activity-mark ${spinning ? "activity-icon-spinner" : animated ? "activity-icon-emphasis" : ""}`}
+                aria-hidden="true"
+              >
+                {spinning ? (
+                  <LoaderCircle />
+                ) : row.type === "RECOVERY_STARTED" ? (
+                  <Circle />
+                ) : row.tone === "failure" ? (
+                  <AlertTriangle />
+                ) : row.tone === "review" ? (
+                  <Pause />
+                ) : row.tone === "success" ? (
+                  <Check />
+                ) : (
+                  <Circle />
+                )}
+              </span>
+              <div>
+                <h3 className="font-medium">{row.title}</h3>
+                {row.detail && (
+                  <p className="mt-1 text-xs leading-relaxed">{row.detail}</p>
+                )}
+              </div>
+            </li>
+          );
+        })}
         {!shown.length && (
           <li className="activity-empty">
             {rows.length && presenting
