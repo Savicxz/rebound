@@ -91,7 +91,7 @@ async def test_actual_tool_round_trip_and_grounded_trace(monkeypatch):
     assert client.aio.models.generate_content.await_count == 3
     final = client.aio.models.generate_content.call_args.kwargs
     assert final["config"].tools is None
-    assert final["contents"][2].role == "tool"
+    assert final["contents"][2].role == "user"
     client.aio.aclose.assert_awaited_once()
 
 
