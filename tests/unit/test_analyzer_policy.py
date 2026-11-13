@@ -97,6 +97,8 @@ def test_sensitive_values_are_redacted():
 async def test_gemini_records_the_actual_provider_and_closes_client(monkeypatch, fails):
     from google import genai
 
+    GeminiIncidentAnalyzer._starts.clear()
+
     async def generate(**kwargs):
         if fails:
             raise RuntimeError("private failure details")
@@ -107,7 +109,7 @@ async def test_gemini_records_the_actual_provider_and_closes_client(monkeypatch,
                     "provider": "demo_fallback",
                     "summary": "Connection failure",
                     "suspected_cause": "Process unavailable",
-                    "evidence_event_ids": ["probe", "invented"],
+                    "evidence_event_ids": ["probe"],
                     "confidence": "medium",
                     "reasoning_summary": "Review probes",
                     "requires_human_review": False,
@@ -117,7 +119,8 @@ async def test_gemini_records_the_actual_provider_and_closes_client(monkeypatch,
 
     client = SimpleNamespace(
         aio=SimpleNamespace(
-            models=SimpleNamespace(generate_content=generate), aclose=AsyncMock()
+            models=SimpleNamespace(generate_content=generate, get=AsyncMock()),
+            aclose=AsyncMock(),
         ),
         close=Mock(),
     )

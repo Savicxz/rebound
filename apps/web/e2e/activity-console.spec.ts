@@ -90,6 +90,14 @@ test.describe("live recorded console", () => {
       .boundingBox();
     expect(counts!.y + counts!.height).toBeLessThanOrEqual(768);
     await capture(page, "console-success.png");
+    const investigation = page.locator("details").filter({
+      has: page.locator("summary", { hasText: "AI investigation details" }),
+    });
+    await investigation.locator("summary").click();
+    await expect(investigation).toContainText("No diagnostic tool completed.");
+    await expect(investigation).toContainText("Independent policy verdict");
+    await capture(page, "ai-investigation-details.png");
+    await investigation.locator("summary").click();
     await page.getByLabel("Change scenario").selectOption("degraded");
     await page
       .getByRole("button", { name: "Run selected scenario", exact: true })

@@ -937,3 +937,31 @@ for (const [palette, semantic] of [
     );
   }
 }
+
+// Model-tool rows appear only when matching recorded backend events exist.
+const toolTypes = [
+  "GEMINI_INVESTIGATION_STARTED",
+  "DIAGNOSTIC_TOOL_REQUESTED",
+  "DIAGNOSTIC_TOOL_COMPLETED",
+];
+const toolRows = activity.activityRows({
+  ...consoleIncident,
+  events: toolTypes.map((event_type, i) => ({
+    ...activityEvents[0],
+    id: `tool-${i}`,
+    sequence: i + 1,
+    event_type,
+    public_message: "Recorded tool evidence",
+  })),
+});
+assert.deepEqual(
+  toolRows.map((row) => row.title),
+  [
+    "Gemini investigation started",
+    "Diagnostic tool requested",
+    "Tool evidence received",
+  ],
+);
+assert.ok(rows.every((row) => !toolTypes.includes(row.type)));
+assert.match(initialCompleted, /AI investigation details/);
+assert.match(initialCompleted, /No diagnostic tool completed/);

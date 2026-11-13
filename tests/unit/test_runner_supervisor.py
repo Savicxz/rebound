@@ -27,6 +27,23 @@ def test_runner_auth_required(client):
     assert res.status_code == 401
 
 
+def wait_for_child():
+    """Wait for actual readiness, not a machine-dependent process startup sleep."""
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            response = httpx.get(
+                f"http://127.0.0.1:{RUNNER_DEMO_PORT}/health", timeout=1
+            )
+            if response.status_code == 200:
+                return response
+        except httpx.TransportError:
+            pass
+        if time.monotonic() >= deadline:
+            pytest.fail("Child did not become healthy within 10 seconds")
+        time.sleep(0.1)
+
+
 def test_runner_status_and_lifecycle(client):
     headers = {"X-Runner-Token": RUNNER_AUTH_TOKEN}
 
@@ -42,18 +59,9 @@ def test_runner_status_and_lifecycle(client):
     assert data["child_running"] is True
     assert data["child_pid"] is not None
 
-    # Wait a moment for child process to bind
-    time.sleep(1.5)
-
-    # Verify child service is reachable on port 5006
-    try:
-        child_res = httpx.get(
-            f"http://127.0.0.1:{RUNNER_DEMO_PORT}/health", timeout=3.0
-        )
-        assert child_res.status_code == 200
-        assert child_res.json()["status"] == "healthy"
-    except Exception as e:
-        pytest.fail(f"Could not connect to child service: {e}")
+    child_res = wait_for_child()
+    assert child_res.status_code == 200
+    assert child_res.json()["status"] == "healthy"
 
     # 2. Crash scenario
     crash_res = client.post("/internal/v1/scenario/crash", headers=headers)
@@ -72,11 +80,8 @@ def test_runner_status_and_lifecycle(client):
     assert restart_res.status_code == 200
     assert restart_res.json()["action"] == "RESTART_DEMO_CHILD_EXECUTED"
 
-    time.sleep(1.5)
-    # Verify child service is back up
-    child_res_restarted = httpx.get(
-        f"http://127.0.0.1:{RUNNER_DEMO_PORT}/health", timeout=3.0
-    )
+    # Verify actual readiness after the restart.
+    child_res_restarted = wait_for_child()
     assert child_res_restarted.status_code == 200
     assert child_res_restarted.json()["status"] == "healthy"
 

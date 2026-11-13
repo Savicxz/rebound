@@ -3,7 +3,7 @@ import time
 import json
 import logging
 import signal
-from datetime import timezone, timedelta
+from datetime import timezone, timedelta, datetime
 import httpx
 from sqlalchemy.future import select
 from sqlalchemy import update
@@ -213,6 +213,18 @@ async def handle_incident_flow(
         created_at=get_utc_now(),
     )
     session.add(ai_record)
+    # Buffered provider trace records only actual operations; preserve occurrence times.
+    for step in (analysis_result.investigation or {}).get("steps", []):
+        event = await record_event(
+            session,
+            incident.id,
+            step["event_type"],
+            step["summary"],
+            actor_type="AI",
+            actor_id="gemini_api",
+            metadata=step,
+        )
+        event.at = datetime.fromisoformat(step["at"])
     await record_event(
         session,
         incident.id,

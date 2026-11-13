@@ -81,6 +81,7 @@ class AIAnalysisResult(BaseModel):
     reasoning_summary: str
     requires_human_review: bool
     fallback_reason: Optional[str] = None
+    investigation: Optional[dict] = None
 
 
 class AIAnalysisResponse(BaseModel):

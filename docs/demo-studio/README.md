@@ -118,3 +118,54 @@ These are actual isolated-stack attendance and registration runs using labelled 
 [Browser recording: attendance and safe refusal](recordings/operations-console.webm). [Mobile console](screenshots/console-mobile.png).
 
 Console validation: 58 Python tests, all 11 Chromium tests, frontend checks, formatting, and the production build passed. Coverage includes real attendance/refusal, initial completed outcomes, controlled pacing, pause/resume, skip/replay, stale evidence, reduced motion, ordering/deduplication, history gaps and missing verification. Semantic colors meet 4.5:1 contrast against the light and dark surfaces. Default presentation remains dark; theme-aware tokens also support the light palette. No backend, monitoring, runbook, policy or event-delivery code changed.
+
+## Judging evidence and 120-second capture
+
+| Time | Screen / narration |
+| --- | --- |
+| 0-15 s | Attendance ready. "Campus IT repeatedly investigates stalled services. Rebound is our Intelligent Automation & Digital Transformation prototype. Everything here is synthetic." |
+| 15-30 s | Open AI investigation details on a prior recorded run. "Gemini can request incident-scoped probes and history. Its versioned instructions treat logs as data. A separate policy alone authorizes recovery." Name the actual provider. |
+| 30-75 s | Run attendance, confirm, follow the recorded feed. "This request failed; the independent monitor detected it. Here is the recorded assessment, policy approval and bounded queue replay." Wait for actual counts and verification. "These observations show the pending, processed and remaining records. Two independent health checks confirm recovery." Read actual values; do not speak expected values before observing them. |
+| 75-95 s | Select registration contention, run and confirm. "There is no approved recovery for this fault. Human investigation is required. Refusing an unsafe restart preserves the safety boundary." If still pending, say so; a clearly labelled saved capture can be used in a time-limited pitch. |
+| 95-120 s | Expand AI investigation details / Technical details. "The trace records actual tool calls and evidence, not generated reasoning. This prototype automates a known operational task. Real adoption needs approved service integrations and runbooks, access control and operational validation. We have not measured savings." |
+
+**Provider wording:** In the locally recorded evidence, say "Deterministic fallback; a live Gemini request was not demonstrated because local credentials were unavailable." Only replace that sentence after a genuine configured-provider run is recorded. A mock, model-availability lookup, or deployed key alone does not establish successful inference. Gemini Enterprise is not integrated.
+
+**Exact capture procedure:** Start the stack and sign in before recording; use 1366x768. Reset and wait for a healthy baseline. Start screen recording, narrate the table above, and let real results complete. Open **AI investigation details** to inspect provider, prompt purpose/version, supplied evidence, actual tool results, recommendation, independent policy and verification. Use **Technical details / Export evidence** for the JSON. Record registration separately if it exceeds the slot; label any edited or previously captured segment. Never accelerate a pending result into a claimed success. Run `npm run test:e2e` in `apps/web` to regenerate live local screenshots and the Playwright video; that run deliberately disables Gemini credentials for repeatability.
+
+```mermaid
+flowchart LR
+  M[Independent health monitor] --> C[Atomic incident claim]
+  C --> G[Gemini / labelled fallback]
+  G <-->|At most two read-only diagnostic rounds| T[Incident probes and event history]
+  G --> V[Schema and evidence validation]
+  V --> P[Unchanged deterministic policy]
+  P -->|Approved only| R[Fixed bounded runbook]
+  P -->|Blocked| H[Human investigation]
+  R --> I[Independent health verification]
+  I --> E[Recorded outcome and observed queue counts]
+```
+
+| Criterion | Weight | Implemented evidence / honest boundary |
+| --- | --- | --- |
+| Problem value | 15% | Repetitive campus IT investigation and known recovery; synthetic workload only. |
+| User interface | 10% | Attendance-first controls, chronological evidence, mobile layout, advanced detail disclosures. |
+| Agentic workflow | 20% | Model-selected read-only tools, bounded rounds, recorded tool results; live Gemini still needs credentialed verification. |
+| Prompting and orchestration | 20% | Versioned untrusted-data prompt, structured output, evidence/action validation, independent authorization; deterministic provider tests. |
+| App output | 15% | Actual queue observations, one replay, unchanged process, independent probes; refusal has no recovery claim. |
+| Business value | 10% | Known operational work automated with auditable intervention; savings and institutional impact unmeasured. |
+| Presentation | 10% | 120-second narration, raw live local recording and screenshots, provider disclosure. |
+
+The rubric is supplied by the team; this mapping does not predict judging scores. Existing application monitoring and synthetic tests can cover detection/verification. Rebound's prototype contribution is the visible combination of evidence gathering, a bounded recommendation, deterministic authorization and an auditable recovery outcome. It does not prove superiority over a mature operations platform.
+
+### Final validation artifacts
+
+- [AI investigation disclosure (local fallback)](screenshots/ai-investigation-details.png)
+- [Hosted operator sign-in (deployed main)](screenshots/hosted-judge-access.png) and [recorded sign-in result](hosted-access-result.json)
+- [Attendance verified](screenshots/console-success.png), [safe refusal](screenshots/console-human-review.png), [mobile](screenshots/console-mobile.png)
+- [Raw local attendance + refusal recording](recordings/operations-console.webm): an automated browser capture, without narration; **deterministic fallback**, not a Gemini demonstration.
+- [Three consecutive attendance runs](three-attendance-runs.json): persisted synthetic incident, queue, process and verification evidence from the complete browser suite.
+
+Validation on 2026-11-13: 79 Python tests passed on SQLite; the same 79 passed on isolated PostgreSQL 16. TypeScript/UI assertions, formatting and production build passed. The full 11-test Playwright suite passed, including three consecutive attendance recoveries and mobile/refusal checks; the two console tests were rerun after placing the AI disclosure below the observed result. Hosted main sign-in returned HTTP 200 and OPERATOR. No live Gemini inference was attempted because local credentials were absent; provider tests use mocks.
+
+The first cold-start regression exposed a fixed-sleep readiness assumption in the supervisor test; it now waits for an actual healthy response within a bounded deadline. A PostgreSQL rerun initially reused a database containing an obsolete test-service address; the passing run used a freshly initialized isolated test schema. No thresholds, policy decisions or runbook behavior were changed to make these checks pass.
