@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     ANALYSIS_TIMEOUT_SECONDS: float = Field(default=20.0, gt=0, le=120)
 
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_ENTERPRISE_ENABLED: bool = False
     GEMINI_ENTERPRISE_WORKFLOW_ENDPOINT: str = ""
 

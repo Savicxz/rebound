@@ -159,7 +159,7 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
     _starts = deque()
     _blocked_until = 0.0
 
-    def __init__(self, api_key: str, model_id: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model_id: str = "gemini-3.5-flash-lite"):
         self.api_key = api_key
         self.model_id = model_id
         self.fallback = DeterministicDemoAnalyzer()
@@ -204,6 +204,7 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
         cls._active = True
         cls._starts.append(now)
         client = None
+        phase = "model_availability"
         try:
             async with asyncio.timeout(settings.ANALYSIS_TIMEOUT_SECONDS * 0.9):
                 from google import genai
@@ -250,6 +251,7 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
                 ]
                 known = set(trace["evidence_ids"])
                 for round_number in range(2):
+                    phase = f"diagnostic_round_{round_number + 1}"
                     response = await client.aio.models.generate_content(
                         model=self.model_id,
                         contents=contents,
@@ -277,6 +279,9 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
                         raise ValueError("Investigation token budget exceeded")
                     calls = getattr(response, "function_calls", None) or []
                     if not calls:
+                        candidates = getattr(response, "candidates", None)
+                        if candidates and candidates[0].content:
+                            contents.append(candidates[0].content)
                         break
                     if len(calls) > 2:
                         raise ValueError("Too many diagnostic requests")
@@ -319,11 +324,15 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
                             }
                         )
                         parts.append(
-                            types.Part.from_function_response(
-                                name=call.name, response=output
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    name=call.name,
+                                    id=getattr(call, "id", None),
+                                    response=output,
+                                )
                             )
                         )
-                    contents.append(types.Content(role="tool", parts=parts))
+                    contents.append(types.Content(role="user", parts=parts))
                 contents.append(
                     types.Content(
                         role="user",
@@ -334,6 +343,7 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
                         ],
                     )
                 )
+                phase = "structured_assessment"
                 response = await client.aio.models.generate_content(
                     model=self.model_id,
                     contents=contents,
@@ -397,6 +407,9 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
         except Exception as error:
             name = type(error).__name__
             status = getattr(error, "code", None)
+            if isinstance(status, int):
+                trace["failure_status"] = status
+                trace["failure_stage"] = phase
             if status == 429:
                 cls._blocked_until = time.monotonic() + 60
             logger.warning(
@@ -405,7 +418,7 @@ class GeminiIncidentAnalyzer(IncidentAnalyzer):
             reason = (
                 "Gemini quota exhausted or rate limited; deterministic fallback used."
                 if status == 429
-                else f"Gemini investigation unavailable ({name}); deterministic fallback used."
+                else f"Gemini investigation unavailable ({name}{f'; HTTP {status} during {phase}' if isinstance(status, int) else ''}); deterministic fallback used."
             )
             return await fallback(
                 reason,

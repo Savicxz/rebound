@@ -22,6 +22,8 @@ Set credentials only in server-side Railway variables, never the browser. Local 
 
 [Judge narration, capture instructions and rubric evidence](docs/demo-studio/README.md#judging-evidence-and-120-second-capture).
 
+The default model is `gemini-3.5-flash-lite`, overridable with worker-side `GEMINI_MODEL`. Google restricts access to deprecated `gemini-2.5-flash` for newer users; a successful metadata lookup does not prove generation access. See [Google's deprecation guidance](https://aistudio.google.com/docs/deprecations#gemini-2.5-flash-models). Manual tool responses preserve provider call IDs and use user-role turns; SDK wire-format regression tests use mocked HTTP and are not live-provider evidence. Fallback diagnostics expose only HTTP status and controlled request-stage names, never raw provider responses.
+
 ### Optional live-provider check
 
 ```sh
