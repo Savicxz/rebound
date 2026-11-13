@@ -22,6 +22,14 @@ Set credentials only in server-side Railway variables, never the browser. Local 
 
 [Judge narration, capture instructions and rubric evidence](docs/demo-studio/README.md#judging-evidence-and-120-second-capture).
 
+### Optional live-provider check
+
+```sh
+python -m pytest tests/integration/test_gemini_live.py --live-gemini -q
+```
+
+Configure `GEMINI_API_KEY` securely in the process environment beforehand; `GEMINI_MODEL` remains configurable. Do not paste credentials into this command. The test skips without explicit opt-in or when the environment key is missing. Normal CI stays keyless and uses mocked provider responses. An opted-in provider error **fails** the test rather than treating fallback as success. It uses synthetic evidence and the isolated test database and never runs recovery. Skipped or mocked tests do not verify live Gemini integration.
+
 ## Open the hosted demo
 
 1. Visit **[Rebound on Railway](https://rebound-production-1974d3f6.up.railway.app)**.

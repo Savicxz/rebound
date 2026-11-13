@@ -9,6 +9,32 @@ import tempfile
 
 import pytest
 
+# Retain credentials only in process memory for the explicitly opted-in fixture.
+# Normal application tests still see an empty key on credentialed machines.
+_live_gemini_key = os.environ.get("GEMINI_API_KEY", "")
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--live-gemini",
+        action="store_true",
+        default=False,
+        help="Opt into a billable Gemini integration test using environment credentials",
+    )
+
+
+@pytest.fixture
+def live_gemini_analyzer(request):
+    if not request.config.getoption("--live-gemini"):
+        pytest.skip("Live Gemini test requires explicit --live-gemini opt-in")
+    if not _live_gemini_key:
+        pytest.skip("GEMINI_API_KEY is unavailable; no live request made")
+    from services.api.analyzer import GeminiIncidentAnalyzer
+    from services.api.config import settings
+
+    return GeminiIncidentAnalyzer(_live_gemini_key, settings.GEMINI_MODEL)
+
+
 test_directory = tempfile.TemporaryDirectory(
     prefix="rebound-tests-", ignore_cleanup_errors=True
 )
