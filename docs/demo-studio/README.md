@@ -10,9 +10,9 @@ Before presenting, run `python start.py`, click **Start local demo**, reset any 
 | --- | --- |
 | 0-10 s | "Attendance records can get stuck waiting to sync. Rebound demonstrates one approved recovery and checks the result. These are synthetic records." |
 | 10-20 s | Click **Run demonstration**, then **Confirm scenario**. "Twelve records are now queued. This request shows the failure; a separate monitor detects it." |
-| 20-40 s | Show the failed request, then the visible **Analysis and safety decision** panel. "Rebound allows a fixed queue replay only when evidence matches. Analysis cannot override that rule." Read the recorded assessment, recommended predefined action and independent policy verdict. Name the actual provider displayed; fallback is not live Gemini. |
+| 20-40 s | Show the detected failure, then the recorded analysis and safety decision. "Rebound allows a fixed queue replay only when evidence matches. Analysis cannot override that rule." Read the recorded assessment, recommended predefined action and independent policy verdict. Name the actual provider displayed; fallback is not live Gemini. |
 | 40-60 s | Wait for **Queue replayed. Recovery verified.** and the observed counts: **12 pending at failure / 12 processed / 0 remaining**. "The queue was processed without restarting the service. Independent health checks verified recovery." Quote only the displayed time, measured from incident detection. |
-| 60-70 s | Point to **Print incident summary** and **Download evidence JSON**. "The result and supporting evidence remain available for review." |
+| 60-70 s | Open **Technical details** for **Print incident summary** and **Export evidence**. "The result and supporting evidence remain available for review." |
 | 70-85 s | Show the saved registration safety-stop screenshot. "For this simulated database fault, there is no approved remedy. Rebound records the evidence and stops without restarting." Identify it as a completed test capture, not a second live run. |
 | 85-90 s | "Rebound automates a known recovery task and makes its safety boundary visible." |
 
@@ -20,11 +20,11 @@ These times are speaking guidance, not promised execution durations. Default che
 
 ## Follow-up stories and evidence
 
-For a live safety stop outside the 90-second slot: **Try human-review scenario**, then **Confirm replay**. Wait for **Automatic recovery safely blocked**. The registration request returns HTTP 500 and no recovery execution is recorded. Reset closes the incident administratively; it is not recovery.
+For a live safety stop outside the 90-second slot: select **Registration hits database contention** in **Change scenario**, click **Run selected scenario**, then **Confirm replay**. Wait for **Automatic recovery safely blocked**. The registration request returns HTTP 500 and no recovery execution is recorded. Reset closes the incident administratively; it is not recovery.
 
-Portal crash/restart remains available under **Choose another demo**. Select **The learning portal goes offline** and run it. A real child process stops and is restarted once; independent probes verify health. Course content is illustrative, not retrieved from a university portal.
+Portal crash/restart remains available in **Change scenario**. Select **The learning portal goes offline** and run it. A real child process stops and is restarted once; independent probes verify health. Course content is illustrative, not retrieved from a university portal.
 
-**Advanced technical evidence** opens the recorded workflow, analysis, policy decision, process counters, probe receipts and event timeline. **Recovery execution details** contains the raw execution receipt and process observations. Disclosures do not affect backend processing. Provider provenance stays visible in the main outcome.
+**Technical details** opens the recorded workflow, analysis, policy decision, process counters, probe receipts and event timeline. Within that area, **Recovery execution details** contains the raw execution receipt and process observations. Disclosures do not affect backend processing. Provider provenance stays visible in the main outcome.
 
 ## Final screenshots
 
@@ -80,3 +80,17 @@ The main panel now exposes the recorded analysis summary and recommended action 
 The three recorded attendance runs each resolved a distinct incident with one successful queue replay, twelve processed records, zero remaining, two successful verification events and no process restart. Viewport assertions check that the observed result counts fit within 1366 x 768 after focusing the workspace. Gemini-rendering fixtures test provider presentation only; live Gemini was not exercised because this environment has no configured key.
 
 Final checks: 58 Python tests and all nine Chromium tests passed; `npm run check`, `npm run format:check`, and `npm run build` passed. Backend thresholds, policies, runbooks and incident lifecycle were unchanged.
+
+## Minimal presentation comparison
+
+Before captures are preserved from merged PR #6; after captures come from the live browser tests for this update. These are layout comparisons, not timing benchmarks.
+
+| View | Before | After |
+| --- | --- | --- |
+| Attendance result | [Before](before-minimal/studio-attendance-verified.png) | [After](screenshots/studio-attendance-verified.png) |
+| Mobile attendance | [Before](before-minimal/studio-attendance-mobile.png) | [After](screenshots/studio-attendance-mobile.png) |
+| Human review | [Before](before-minimal/studio-human-review-dark.png) | [After](screenshots/studio-human-review-dark.png) |
+
+Use **Change scenario** to select any of the three existing stories. After a completed run, **Replay demo** repeats it; selecting a different story changes that button to **Run selected scenario**. **Reset sandbox** remains the only secondary run control. Student requests, measurements, print, export, execution receipts and history are all inside **Technical details**. Missing observations, stale updates and human-review states remain explicit.
+
+Cleanup validation: 58 Python tests, all nine Chromium tests, frontend checks, formatting and the production build passed. Browser assertions cover one replay/reset control, hidden engineering evidence, native scenario selection on mobile, attendance counts, safe refusal and disconnected states. Desktop 1366 x 768, mobile 390px and dark refusal captures were visually inspected. Backend thresholds, policies, runbooks and incident lifecycle were not changed.

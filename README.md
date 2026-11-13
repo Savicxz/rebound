@@ -57,7 +57,7 @@ Do not commit `.env`, database files or credentials.
 2. Run the default attendance story: twelve synthetic records enter a stalled queue.
    Rebound permits a bounded replay; the response reports zero pending and twelve processed.
    Two successful independent health checks verify recovery without restarting the process.
-3. Review the plain-language outcome. Expand **Advanced technical evidence** for
+3. Review the plain-language outcome. Expand **Technical details** for
    process observations, probe receipts, analysis source and the event journal.
    A successful action alone does not prove recovery.
 4. Compare student-request receipts and before/failure/after observations. Print the

@@ -6,4 +6,4 @@ Primary: **Attendance records stop syncing**. Twelve synthetic queued records ar
 
 Secondary: **Registration hits database contention**. HTTP 500 evidence requires human review and no recovery execution. Within ninety seconds, use a clearly labelled saved safety-stop capture. Run it live afterward if time permits.
 
-Portal crash/restart remains available as an alternate story. Advanced technical evidence is expandable. State the actual analysis provider; deterministic fallback is not live Gemini. No university integration, durable attendance store, email delivery or ticketing is connected.
+Portal crash/restart remains available as an alternate story. Technical details is expandable. State the actual analysis provider; deterministic fallback is not live Gemini. No university integration, durable attendance store, email delivery or ticketing is connected.

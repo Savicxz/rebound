@@ -98,13 +98,13 @@ export function RecordedAnalysis({ incident }: { incident: Incident }) {
       <p className="text-xs font-medium text-stone-700">
         {providerName(incident)}
       </p>
-      <dl className="mt-3 space-y-3 text-sm text-stone-700">
+      <dl className="mt-3 grid gap-4 text-sm text-stone-700 md:grid-cols-3">
         <div>
           <dt className="font-semibold">Evidence assessment</dt>
           <dd>{analysis?.summary || "Analysis has not been recorded yet."}</dd>
         </div>
         <div>
-          <dt className="font-semibold">Recommended predefined action</dt>
+          <dt className="font-semibold">Recommended action</dt>
           <dd>
             {analysis?.recommended_runbook_id === "REPLAY_DEMO_ATTENDANCE_QUEUE"
               ? "Replay the synthetic attendance queue"
@@ -118,13 +118,19 @@ export function RecordedAnalysis({ incident }: { incident: Incident }) {
         </div>
         <div>
           <dt className="font-semibold">Independent policy decision</dt>
-          <dd>{policy?.public_message || "No authorization recorded yet."}</dd>
+          <dd>
+            {policy?.public_message
+              .replace(/^Policy verdict:\s*/, "")
+              .replaceAll(
+                "REPLAY_DEMO_ATTENDANCE_QUEUE",
+                "attendance queue replay",
+              )
+              .replaceAll("RESTART_DEMO_CHILD_SERVICE", "service restart")
+              .replaceAll("allowlisted runbook ", "approved action: ") ||
+              "No authorization recorded yet."}
+          </dd>
         </div>
       </dl>
-      <p className="mt-2 text-xs text-stone-500">
-        Analysis recommends. Deterministic policy authorizes. Only recorded
-        results are shown.
-      </p>
     </section>
   );
 }
@@ -178,6 +184,7 @@ export default function DemoEvidence({
   onIncidentChange,
   studentReceipts = [],
   outcomeActions,
+  requestPanel,
 }: {
   data: DashboardData | null;
   token?: string;
@@ -188,6 +195,7 @@ export default function DemoEvidence({
   onIncidentChange?: (incident: Incident | null) => void;
   studentReceipts?: StudentReceipt[];
   outcomeActions?: React.ReactNode;
+  requestPanel?: React.ReactNode;
 }) {
   const [record, setRecord] = useState<Incident | null>(null);
   const [incidentError, setIncidentError] = useState<string | null>(null);
@@ -398,8 +406,10 @@ export default function DemoEvidence({
       >
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="ui-eyebrow">02 / Rebound observes and responds</p>
-            {run && (
+            {!compact && (
+              <p className="ui-eyebrow">02 / Rebound observes and responds</p>
+            )}
+            {run && !compact && (
               <p className="mt-2 text-sm font-medium text-stone-700">
                 {scenarioTitle || run.scenario_id.replaceAll("_", " ")} /{" "}
                 <span className="font-mono text-xs">{run.id.slice(0, 8)}</span>
@@ -414,7 +424,7 @@ export default function DemoEvidence({
                 <ActivityIndicator className="!h-8 !w-8" />
               ) : reset ? (
                 <RotateCcw aria-hidden="true" className="h-6 w-6" />
-              ) : verified ? (
+              ) : verified && !stale ? (
                 <Check aria-hidden="true" className="h-7 w-7" />
               ) : review || stale ? (
                 <Pause aria-hidden="true" className="h-6 w-6" />
@@ -425,55 +435,50 @@ export default function DemoEvidence({
                 id="demo-evidence-title"
                 className="text-xl font-semibold tracking-tight text-stone-900 sm:text-2xl"
               >
-                {label}
+                {compact && !stale && !operation && !reset && verified
+                  ? run?.scenario_id === "attendance_backlog"
+                    ? "Queue replayed. Recovery verified."
+                    : run?.scenario_id === "crash"
+                      ? "Portal restored. Recovery verified."
+                      : label
+                  : compact && review && !stale && !operation && !reset
+                    ? incident?.auto_recovery_attempted ||
+                      incident?.runbook_executions.length
+                      ? "Recovery needs human attention."
+                      : "Automatic recovery safely blocked"
+                    : label}
               </h2>
             </div>
           </div>
-          <button
-            className="ui-button"
-            disabled={!incident && !run}
-            onClick={download}
-          >
-            <Download aria-hidden="true" className="h-4 w-4" />
-            {downloaded ? "Download again" : "Export evidence"}
-          </button>
         </header>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-600">
-          {stale
-            ? "Progress is paused visually until fresh server evidence arrives. Displayed records are retained; no recovery is being inferred."
-            : operation
-              ? "The control request is in flight. Subsequent progress comes from the independent monitor."
-              : reset
-                ? "This demonstration ended administratively. Earlier records are retained; a reset does not prove recovery."
-                : verified
-                  ? "The approved action completed and independent healthy probes confirmed recovery."
-                  : review
-                    ? incident?.latest_analysis?.reasoning_summary ||
-                      "The policy stopped automatic execution. Human investigation is required."
-                    : phase.key === "detection"
-                      ? `${failureCount} of ${run?.failure_threshold || 3} failed checks recorded. Checks run every ${run?.check_interval_seconds || 5} seconds; an incident opens only after the configured threshold.`
-                      : phase.key === "loading-incident"
-                        ? "An incident ID is recorded. Loading its event history before showing an outcome."
-                        : incident?.latest_analysis?.summary ||
-                          (incident
-                            ? "Follow the recorded investigation below. No outcome is assumed."
-                            : "Run a scenario above to capture a healthy baseline and introduce a controlled failure.")}
-        </p>
-        {data && phase.key === "detection" && !stale && (
-          <Counter
-            count={failureCount}
-            threshold={run?.failure_threshold || 3}
-            label="Recorded failed probes"
-          />
+        {(stale ||
+          operation ||
+          reset ||
+          !compact ||
+          (!verified && !review && !incident?.latest_analysis)) && (
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-600">
+            {stale
+              ? "Updates are unavailable. Earlier evidence is retained; recovery is not inferred."
+              : operation
+                ? "Waiting for the control request to complete."
+                : reset
+                  ? "Reset ended the run without claiming recovery."
+                  : phase.key === "detection"
+                    ? "The monitor is checking the failure."
+                    : phase.key === "loading-incident"
+                      ? "Loading recorded evidence."
+                      : !run
+                        ? "Choose a scenario and run the demonstration."
+                        : "Waiting for recorded analysis."}
+          </p>
         )}
-        {phase.key === "verifying" &&
-          typeof successfulVerifications === "number" && (
-            <Counter
-              count={successfulVerifications}
-              threshold={run?.verification_threshold || 2}
-              label="Consecutive healthy verification probes"
-            />
-          )}
+        {compact && (verified || review) && !stale && !operation && !reset && (
+          <p className="mt-2 text-sm text-stone-600">
+            {review
+              ? "Human investigation required; recovery is not verified."
+              : "Independent health checks confirmed recovery."}
+          </p>
+        )}
         {(stale || runtimeError || downloadError) && (
           <div className="ui-notice mt-4 flex flex-wrap items-center justify-between gap-3">
             <p>
@@ -501,47 +506,6 @@ export default function DemoEvidence({
             JSON download requested. The report includes synthetic-data and
             stale-evidence disclosures.
           </p>
-        )}
-        {compact && run && (
-          <details className="mt-3">
-            <summary className="text-xs text-stone-600">
-              Request measurements
-            </summary>
-            <dl
-              className="mt-5 grid grid-cols-3 gap-3 border-t border-stone-200 pt-4"
-              aria-label="Before failure and after measurements"
-            >
-              {[
-                ["Before", run.baseline],
-                ["Failure", failure],
-                [
-                  review ? "Current service" : "After",
-                  review ? (stale ? undefined : latest) : after,
-                ],
-              ].map(([name, value]) => {
-                const probe = value as
-                  | {
-                      http_status?: number | null;
-                      latency_ms: number;
-                      observed_at?: string;
-                    }
-                  | undefined;
-                return (
-                  <div key={String(name)}>
-                    <dt className="ui-eyebrow">{String(name)}</dt>
-                    <dd className="mt-2 font-mono text-xs leading-relaxed">
-                      {probe
-                        ? `${probe.http_status == null ? "No response" : `HTTP ${probe.http_status}`} / ${probe.latency_ms.toFixed(1)} ms`
-                        : "Not observed"}
-                    </dd>
-                    <p className="mt-1 text-[11px] text-stone-500">
-                      {formatClock(probe?.observed_at)}
-                    </p>
-                  </div>
-                );
-              })}
-            </dl>
-          </details>
         )}
         {run && !compact && (
           <dl className="mt-6 grid gap-5 border-t border-stone-200 pt-5 sm:grid-cols-3">
@@ -586,30 +550,115 @@ export default function DemoEvidence({
           </dl>
         )}
       </div>
+      {incident &&
+        (compact
+          ? run?.scenario_id === "attendance_backlog"
+          : verified || review || reset) && (
+          <IncidentSummary
+            view={compact ? "outcome" : "full"}
+            incident={incident}
+            run={run}
+            checks={checks}
+            receipts={studentReceipts}
+            scenario={scenarioTitle || incident.title}
+            runtime={runtime}
+            stale={stale || !!runtimeError}
+            actions={
+              <div className="flex flex-wrap gap-2">
+                {outcomeActions}
+                <button className="ui-button" onClick={download}>
+                  Download evidence JSON
+                </button>
+              </div>
+            }
+          />
+        )}
       {compact && incident && <RecordedAnalysis incident={incident} />}
-      {incident && (verified || review || reset) && (
-        <IncidentSummary
-          incident={incident}
-          run={run}
-          checks={checks}
-          receipts={studentReceipts}
-          scenario={scenarioTitle || incident.title}
-          runtime={runtime}
-          stale={stale || !!runtimeError}
-          actions={
-            <div className="flex flex-wrap gap-2">
-              {outcomeActions}
-              <button className="ui-button" onClick={download}>
-                Download evidence JSON
-              </button>
-            </div>
-          }
-        />
-      )}
       <details className="border-t border-stone-200" open={!compact}>
         <summary className="px-5 py-4 text-sm font-medium text-stone-800 sm:px-6">
-          Advanced technical evidence
+          Technical details
         </summary>
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+          <button
+            className="ui-button"
+            disabled={!incident && !run}
+            onClick={download}
+          >
+            <Download aria-hidden="true" className="h-4 w-4" />
+            {downloaded ? "Download again" : "Export evidence"}
+          </button>
+        </div>
+        {data && phase.key === "detection" && !stale && (
+          <Counter
+            count={failureCount}
+            threshold={run?.failure_threshold || 3}
+            label="Recorded failed probes"
+          />
+        )}
+        {phase.key === "verifying" &&
+          typeof successfulVerifications === "number" && (
+            <Counter
+              count={successfulVerifications}
+              threshold={run?.verification_threshold || 2}
+              label="Consecutive healthy verification probes"
+            />
+          )}
+        {requestPanel && <div className="px-5 pb-4">{requestPanel}</div>}
+        {compact && run && (
+          <details className="mt-3">
+            <summary className="text-xs text-stone-600">
+              Request measurements
+            </summary>
+            <dl
+              className="mt-5 grid grid-cols-3 gap-3 border-t border-stone-200 pt-4"
+              aria-label="Before failure and after measurements"
+            >
+              {[
+                ["Before", run.baseline],
+                ["Failure", failure],
+                [
+                  review ? "Current service" : "After",
+                  review ? (stale ? undefined : latest) : after,
+                ],
+              ].map(([name, value]) => {
+                const probe = value as
+                  | {
+                      http_status?: number | null;
+                      latency_ms: number;
+                      observed_at?: string;
+                    }
+                  | undefined;
+                return (
+                  <div key={String(name)}>
+                    <dt className="ui-eyebrow">{String(name)}</dt>
+                    <dd className="mt-2 font-mono text-xs leading-relaxed">
+                      {probe
+                        ? `${probe.http_status == null ? "No response" : `HTTP ${probe.http_status}`} / ${probe.latency_ms.toFixed(1)} ms`
+                        : "Not observed"}
+                    </dd>
+                    <p className="mt-1 text-[11px] text-stone-500">
+                      {formatClock(probe?.observed_at)}
+                    </p>
+                  </div>
+                );
+              })}
+            </dl>
+          </details>
+        )}
+
+        {compact && incident && (verified || review || reset) && (
+          <IncidentSummary
+            view="technical"
+            incident={incident}
+            run={run}
+            checks={checks}
+            receipts={studentReceipts}
+            scenario={scenarioTitle || incident.title}
+            runtime={runtime}
+            stale={stale || !!runtimeError}
+          />
+        )}
+
         {!data ? (
           <div
             aria-label="Loading recorded workflow"

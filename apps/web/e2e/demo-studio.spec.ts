@@ -12,7 +12,10 @@ test.beforeEach(async ({ page }) => {
     .getByRole("button", { name: "Start local demo", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Demo Studio", exact: true }),
+    page.getByRole("heading", {
+      name: "Recover stalled services",
+      exact: true,
+    }),
   ).toBeVisible();
   expect((await page.request.post("/api/v1/demo/reset")).ok()).toBeTruthy();
   await page.getByRole("button", { name: "Refresh data", exact: true }).click();
@@ -21,12 +24,7 @@ test.beforeEach(async ({ page }) => {
   ).toBeEnabled();
 });
 async function run(page: Page, scenario: string) {
-  await page
-    .getByText("Choose a different story / three curated scenarios", {
-      exact: true,
-    })
-    .click();
-  await page.getByRole("button", { name: scenario, exact: false }).click();
+  await page.getByLabel("Change scenario").selectOption({ label: scenario });
   await page
     .getByRole("button", { name: "Run demonstration", exact: true })
     .click();
@@ -34,6 +32,11 @@ async function run(page: Page, scenario: string) {
   await page
     .getByRole("button", { name: "Confirm scenario", exact: true })
     .click();
+}
+async function technical(page: Page, open: boolean) {
+  const summary = page.getByText("Technical details", { exact: true });
+  const isOpen = (await summary.locator("..").getAttribute("open")) !== null;
+  if (isOpen !== open) await summary.click();
 }
 async function screenshot(page: Page, name: string) {
   await mkdir(screenshots, { recursive: true });
@@ -55,7 +58,7 @@ test("learning portal: onboarding, failure, recovery, print, JSON and replay", a
       responses.push(await response.json());
   });
   const action = await page
-    .getByRole("button", { name: "Check attendance sync", exact: true })
+    .getByRole("button", { name: "Run demonstration", exact: true })
     .boundingBox();
   expect(action!.y + action!.height).toBeLessThan(768);
   await page.screenshot({
@@ -79,6 +82,7 @@ test("learning portal: onboarding, failure, recovery, print, JSON and replay", a
       exact: true,
     }),
   ).toBeVisible();
+  await technical(page, true);
   await expect(page.getByTestId("student-receipt")).toContainText("HTTP 200");
   const dashboard = await (await page.request.get("/api/v1/dashboard")).json();
   const incident = await (
@@ -102,16 +106,15 @@ test("learning portal: onboarding, failure, recovery, print, JSON and replay", a
   expect(runtime.child_pid).not.toBe(
     dashboard.demo_run.runtime_before.child_pid,
   );
-  await expect(page.getByRole("region", { name: "Run outcome" })).toContainText(
-    "not a live Gemini call",
-  );
+  await expect(
+    page.getByRole("region", { name: "Analysis and safety decision" }),
+  ).toContainText("not a live Gemini call");
+  await technical(page, false);
   await screenshot(page, "studio-crash-verified.png");
-  await expect(page.getByRole("region", { name: "Run outcome" })).toContainText(
-    "Try human-review scenario",
-  );
+  await technical(page, true);
   const downloadPromise = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download evidence JSON", exact: true })
+    .getByRole("button", { name: "Export evidence", exact: true })
     .click();
   const downloaded = await downloadPromise;
   const downloadPath = testInfo.outputPath("incident.json");
@@ -138,9 +141,8 @@ test("learning portal: onboarding, failure, recovery, print, JSON and replay", a
   ).toBeVisible();
   await screenshot(page, "incident-print-summary.png");
   await page.emulateMedia({ media: "screen" });
-  await page
-    .getByRole("button", { name: "Replay this demo", exact: true })
-    .click();
+  await technical(page, false);
+  await page.getByRole("button", { name: "Replay demo", exact: true }).click();
   await page
     .getByRole("button", { name: "Confirm replay", exact: true })
     .click();
@@ -169,6 +171,7 @@ test("database contention: real HTTP 500, safe human review, dark mode and reset
       exact: true,
     }),
   ).toBeVisible();
+  await technical(page, true);
   await expect(page.getByTestId("student-receipt")).toContainText("HTTP 500");
   const dashboard = await (await page.request.get("/api/v1/dashboard")).json();
   expect(dashboard.active_incident.state).toBe("AWAITING_APPROVAL");
@@ -183,9 +186,11 @@ test("database contention: real HTTP 500, safe human review, dark mode and reset
     .getByRole("button", { name: "Switch to dark mode", exact: true })
     .click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await technical(page, false);
   await screenshot(page, "studio-human-review-dark.png");
+  await page.getByLabel("Change scenario").selectOption("attendance_backlog");
   await page
-    .getByRole("button", { name: "Try automatic recovery", exact: true })
+    .getByRole("button", { name: "Run selected scenario", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toContainText(
     "Attendance records stop syncing",
@@ -211,9 +216,9 @@ test("database contention: real HTTP 500, safe human review, dark mode and reset
 test("attendance replay: actual queue drain, same PID, responsive and reduced motion", async ({
   page,
 }) => {
-  await expect(
-    page.getByRole("region", { name: "Demonstration controls" }),
-  ).toContainText("Attendance records stop syncing");
+  await expect(page.getByLabel("Change scenario")).toHaveValue(
+    "attendance_backlog",
+  );
   await screenshot(page, "studio-attendance-ready.png");
   await page
     .getByRole("button", { name: "Run demonstration", exact: true })
@@ -224,9 +229,11 @@ test("attendance replay: actual queue drain, same PID, responsive and reduced mo
   await page
     .getByRole("button", { name: "Confirm scenario", exact: true })
     .click();
+  await technical(page, true);
   await expect(
     page.getByRole("region", { name: "Attendance sync", exact: true }),
   ).toContainText("12 synthetic records are queued");
+  await technical(page, false);
   await screenshot(page, "studio-attendance-detection.png");
   await expect(
     page.getByRole("heading", {
@@ -234,12 +241,12 @@ test("attendance replay: actual queue drain, same PID, responsive and reduced mo
       exact: true,
     }),
   ).toBeVisible();
-  await expect(page.getByRole("region", { name: "Run outcome" })).toContainText(
-    "Approved action completed: replay the synthetic attendance queue.",
+  await expect(page.getByLabel("Observed attendance result")).toContainText(
+    "Processed afterward12",
   );
-  await expect(
-    page.getByRole("region", { name: "Attendance sync", exact: true }),
-  ).toContainText("0 records pending / 12 processed");
+  await expect(page.getByLabel("Observed attendance result")).toContainText(
+    "Remaining0",
+  );
   const dashboard = await (await page.request.get("/api/v1/dashboard")).json();
   const incident = await (
     await page.request.get(
@@ -265,12 +272,26 @@ test("attendance replay: actual queue drain, same PID, responsive and reduced mo
     page.getByRole("list", { name: "Recorded incident workflow" }),
   ).not.toBeVisible();
   await screenshot(page, "studio-attendance-verified.png");
-  await page.getByText("Advanced technical evidence", { exact: true }).click();
+  const primaryText = await page.locator(".demo-studio").innerText();
+  expect(primaryText).not.toMatch(
+    /REPLAY_DEMO|HTTP \d|PID|What this prototype demonstrates/,
+  );
+  expect(primaryText).not.toContain(incident.id);
+  await expect(
+    page.getByRole("button", { name: "Replay demo", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Reset sandbox", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Export evidence", exact: true }),
+  ).not.toBeVisible();
+  await page.getByText("Technical details", { exact: true }).click();
   await expect(
     page.getByRole("list", { name: "Recorded incident workflow" }),
   ).toBeVisible();
   await screenshot(page, "studio-attendance-evidence.png");
-  await page.getByText("Advanced technical evidence", { exact: true }).click();
+  await page.getByText("Technical details", { exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   expect(
@@ -279,6 +300,13 @@ test("attendance replay: actual queue drain, same PID, responsive and reduced mo
     ),
   ).toBe(true);
   await screenshot(page, "studio-attendance-mobile.png");
+  await page.getByLabel("Change scenario").selectOption("degraded");
+  await expect(
+    page.getByRole("button", { name: "Run selected scenario", exact: true }),
+  ).toBeEnabled();
+  expect(
+    (await (await page.request.get("/api/v1/dashboard")).json()).demo_run.id,
+  ).toBe(dashboard.demo_run.id);
 });
 
 test("three consecutive attendance recoveries retain evidence and visible policy", async ({
@@ -292,7 +320,7 @@ test("three consecutive attendance recoveries retain evidence and visible policy
     ).demo_run?.id;
     await page
       .getByRole("button", {
-        name: index === 0 ? "Run demonstration" : "Replay this scenario",
+        name: index === 0 ? "Run demonstration" : "Replay demo",
         exact: true,
       })
       .click();
@@ -386,17 +414,7 @@ test("three consecutive attendance recoveries retain evidence and visible policy
 test("browser-to-backend disconnection: retain evidence, disable mutations, retry honestly", async ({
   page,
 }) => {
-  await page
-    .getByText("Choose a different story / three curated scenarios", {
-      exact: true,
-    })
-    .click();
-  await page
-    .getByRole("button", {
-      name: "The learning portal goes offline",
-      exact: false,
-    })
-    .click();
+  await page.getByLabel("Change scenario").selectOption("crash");
   await page
     .getByRole("button", { name: "Run demonstration", exact: true })
     .click();
@@ -410,9 +428,11 @@ test("browser-to-backend disconnection: retain evidence, disable mutations, retr
   await expect(
     page.getByRole("button", { name: "Run demonstration", exact: true }),
   ).toBeDisabled();
+  await technical(page, true);
   await expect(
     page.getByRole("button", { name: "Open course materials", exact: true }),
   ).toBeDisabled();
+  await technical(page, false);
   await expect(
     page.getByRole("heading", {
       name: "Waiting for fresh evidence",
@@ -430,17 +450,7 @@ test("browser-to-backend disconnection: retain evidence, disable mutations, retr
 test("connection lost during a live run never invents a result", async ({
   page,
 }) => {
-  await page
-    .getByText("Choose a different story / three curated scenarios", {
-      exact: true,
-    })
-    .click();
-  await page
-    .getByRole("button", {
-      name: "The learning portal goes offline",
-      exact: false,
-    })
-    .click();
+  await page.getByLabel("Change scenario").selectOption("crash");
   await page
     .getByRole("button", { name: "Run demonstration", exact: true })
     .click();
