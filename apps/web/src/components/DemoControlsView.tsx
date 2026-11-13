@@ -34,6 +34,7 @@ export default function DemoControlsView({
   onResetDemo: () => Promise<void>;
   dataStale?: boolean;
 }) {
+  const [guidedPresentation, setGuidedPresentation] = useState(false);
   const [catalog, setCatalog] = useState<Scenario[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState(false);
@@ -206,6 +207,7 @@ export default function DemoControlsView({
         setObservedIncident(null);
         afterCaptured.current = null;
         if (action === "reset") {
+          setGuidedPresentation(false);
           setFeedback(
             "Sandbox reset. Prior evidence was retained; reset is not verified recovery.",
           );
@@ -213,6 +215,7 @@ export default function DemoControlsView({
           return;
         }
       }
+      setGuidedPresentation(true);
       setOperation("inject");
       setReceipts([]);
       afterCaptured.current = null;
@@ -222,12 +225,6 @@ export default function DemoControlsView({
         "Fault injection accepted. The student request and independent monitor now observe the same isolated workload.",
       );
       dialog.current?.close();
-      document.getElementById("studio-workspace")?.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "instant"
-          : "smooth",
-        block: "start",
-      });
       await capture("during").catch(() => {});
     } catch (error) {
       setFailed(true);
@@ -392,6 +389,7 @@ export default function DemoControlsView({
               : studioScenarios[currentScenario].title
           }
           compact
+          guidedPresentation={guidedPresentation}
           onIncidentChange={observe}
           studentReceipts={receipts}
           requestPanel={

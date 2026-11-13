@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { DashboardData, Incident } from "../types";
 import ActivityIndicator from "./ActivityIndicator";
+import ActivityConsole from "./ActivityConsole";
 import IncidentSummary, { providerName } from "./IncidentSummary";
 import {
   StudentReceipt,
@@ -185,6 +186,7 @@ export default function DemoEvidence({
   studentReceipts = [],
   outcomeActions,
   requestPanel,
+  guidedPresentation = false,
 }: {
   data: DashboardData | null;
   token?: string;
@@ -196,6 +198,7 @@ export default function DemoEvidence({
   studentReceipts?: StudentReceipt[];
   outcomeActions?: React.ReactNode;
   requestPanel?: React.ReactNode;
+  guidedPresentation?: boolean;
 }) {
   const [record, setRecord] = useState<Incident | null>(null);
   const [incidentError, setIncidentError] = useState<string | null>(null);
@@ -406,9 +409,11 @@ export default function DemoEvidence({
       >
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            {!compact && (
-              <p className="ui-eyebrow">02 / Rebound observes and responds</p>
-            )}
+            <p className="ui-eyebrow">
+              {compact
+                ? "Backend status / current"
+                : "02 / Rebound observes and responds"}
+            </p>
             {run && !compact && (
               <p className="mt-2 text-sm font-medium text-stone-700">
                 {scenarioTitle || run.scenario_id.replaceAll("_", " ")} /{" "}
@@ -418,7 +423,7 @@ export default function DemoEvidence({
             <div
               role="status"
               aria-live="polite"
-              className="mt-3 flex items-center gap-3"
+              className={`${compact ? "mt-1" : "mt-3"} flex items-center gap-3`}
             >
               {pending ? (
                 <ActivityIndicator className="!h-8 !w-8" />
@@ -472,11 +477,9 @@ export default function DemoEvidence({
                         : "Waiting for recorded analysis."}
           </p>
         )}
-        {compact && (verified || review) && !stale && !operation && !reset && (
+        {compact && review && !stale && !operation && !reset && (
           <p className="mt-2 text-sm text-stone-600">
-            {review
-              ? "Human investigation required; recovery is not verified."
-              : "Independent health checks confirmed recovery."}
+            Human investigation required; recovery is not verified.
           </p>
         )}
         {(stale || runtimeError || downloadError) && (
@@ -550,30 +553,49 @@ export default function DemoEvidence({
           </dl>
         )}
       </div>
-      {incident &&
-        (compact
-          ? run?.scenario_id === "attendance_backlog"
-          : verified || review || reset) && (
-          <IncidentSummary
-            view={compact ? "outcome" : "full"}
-            incident={incident}
-            run={run}
-            checks={checks}
-            receipts={studentReceipts}
-            scenario={scenarioTitle || incident.title}
-            runtime={runtime}
-            stale={stale || !!runtimeError}
-            actions={
-              <div className="flex flex-wrap gap-2">
-                {outcomeActions}
-                <button className="ui-button" onClick={download}>
-                  Download evidence JSON
-                </button>
-              </div>
-            }
-          />
-        )}
-      {compact && incident && <RecordedAnalysis incident={incident} />}
+      {incident && !compact && (verified || review || reset) && (
+        <IncidentSummary
+          view={compact ? "outcome" : "full"}
+          incident={incident}
+          run={run}
+          checks={checks}
+          receipts={studentReceipts}
+          scenario={scenarioTitle || incident.title}
+          runtime={runtime}
+          stale={stale || !!runtimeError}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              {outcomeActions}
+              <button className="ui-button" onClick={download}>
+                Download evidence JSON
+              </button>
+            </div>
+          }
+        />
+      )}
+      {compact && !reset && (
+        <ActivityConsole
+          key={run?.id || "ready"}
+          incident={incident || null}
+          guided={guidedPresentation}
+          reserveResult={run?.scenario_id === "attendance_backlog"}
+          stale={stale}
+          waiting={!!run && phase.pending && !operation}
+        >
+          {incident && run?.scenario_id === "attendance_backlog" && (
+            <IncidentSummary
+              view="outcome"
+              incident={incident}
+              run={run}
+              checks={checks}
+              receipts={studentReceipts}
+              scenario={scenarioTitle || incident.title}
+              runtime={runtime}
+              stale={stale || !!runtimeError}
+            />
+          )}
+        </ActivityConsole>
+      )}
       <details className="border-t border-stone-200" open={!compact}>
         <summary className="px-5 py-4 text-sm font-medium text-stone-800 sm:px-6">
           Technical details
@@ -603,6 +625,7 @@ export default function DemoEvidence({
               label="Consecutive healthy verification probes"
             />
           )}
+        {compact && incident && <RecordedAnalysis incident={incident} />}
         {requestPanel && <div className="px-5 pb-4">{requestPanel}</div>}
         {compact && run && (
           <details className="mt-3">

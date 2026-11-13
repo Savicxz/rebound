@@ -10,7 +10,7 @@ Before presenting, run `python start.py`, click **Start local demo**, reset any 
 | --- | --- |
 | 0-10 s | "Attendance records can get stuck waiting to sync. Rebound demonstrates one approved recovery and checks the result. These are synthetic records." |
 | 10-20 s | Click **Run demonstration**, then **Confirm scenario**. "Twelve records are now queued. This request shows the failure; a separate monitor detects it." |
-| 20-40 s | Show the detected failure, then the recorded analysis and safety decision. "Rebound allows a fixed queue replay only when evidence matches. Analysis cannot override that rule." Read the recorded assessment, recommended predefined action and independent policy verdict. Name the actual provider displayed; fallback is not live Gemini. |
+| 20-40 s | Follow the recorded failure, analysis and safety-policy entries in the activity feed. "Rebound allows a fixed queue replay only when evidence matches. Analysis cannot override that rule." Read the recorded assessment, recommended predefined action and independent policy verdict. Name the actual provider displayed; fallback is not live Gemini. |
 | 40-60 s | Wait for **Queue replayed. Recovery verified.** and the observed counts: **12 pending at failure / 12 processed / 0 remaining**. "The queue was processed without restarting the service. Independent health checks verified recovery." Quote only the displayed time, measured from incident detection. |
 | 60-70 s | Open **Technical details** for **Print incident summary** and **Export evidence**. "The result and supporting evidence remain available for review." |
 | 70-85 s | Show the saved registration safety-stop screenshot. "For this simulated database fault, there is no approved remedy. Rebound records the evidence and stops without restarting." Identify it as a completed test capture, not a second live run. |
@@ -94,3 +94,27 @@ Before captures are preserved from merged PR #6; after captures come from the li
 Use **Change scenario** to select any of the three existing stories. After a completed run, **Replay demo** repeats it; selecting a different story changes that button to **Run selected scenario**. **Reset sandbox** remains the only secondary run control. Student requests, measurements, print, export, execution receipts and history are all inside **Technical details**. Missing observations, stale updates and human-review states remain explicit.
 
 Cleanup validation: 58 Python tests, all nine Chromium tests, frontend checks, formatting and the production build passed. Browser assertions cover one replay/reset control, hidden engineering evidence, native scenario selection on mobile, attendance counts, safe refusal and disconnected states. Desktop 1366 x 768, mobile 390px and dark refusal captures were visually inspected. Backend thresholds, policies, runbooks and incident lifecycle were not changed.
+
+## Recorded operations console
+
+The backend status stays current above the console. The feed shows only committed incident events, in sequence order, with actual timestamps. New demonstrations use a labelled guided presentation at 1.7 seconds per available entry; backend processing is never delayed. If evidence has not arrived, the console waits instead of inventing a stage.
+
+**Pause / Resume presentation** affects only the feed. **Skip to latest** shows the available committed history immediately. **Replay recorded activity** replays evidence after completion; the separate **Replay demo** button starts a new fault scenario. A completed incident opened later shows its current recorded outcome immediately. Counts still require a genuine verification-completed event and actual student-request receipts; a reload can show **Not observed** because request receipts live in browser memory.
+
+Disconnection pauses the presentation and displays a warning. Resume explicitly after fresh evidence returns. Missing event sequences are disclosed, duplicates are removed, and delayed entries are inserted in recorded order. Reduced motion disables entry/wait animations and displays available evidence without paced delays. Keyboard users can focus and scroll the internal feed. Rows are not live-announced; backend status and explicit availability warnings carry announcements.
+
+### Live console captures and recording
+
+These are actual isolated-stack attendance and registration runs using labelled deterministic fallback, not scripted fake responses. The existing two-second test health cadence differs from normal five-second startup settings. The separate controlled-clock test uses recorded evidence to test playback controls; it is not the delivered recording.
+
+1. [Initial state](screenshots/console-initial.png)
+2. [Failure detected](screenshots/console-failure.png)
+3. [Analysis and policy](screenshots/console-analysis-policy.png)
+4. [Recovery execution](screenshots/console-recovery.png)
+5. [Verification checks](screenshots/console-verification.png)
+6. [Verified attendance result](screenshots/console-success.png)
+7. [Human-review refusal](screenshots/console-human-review.png)
+
+[Browser recording: attendance and safe refusal](recordings/operations-console.webm). [Mobile console](screenshots/console-mobile.png).
+
+Console validation: 58 Python tests, all 11 Chromium tests, frontend checks, formatting, and the production build passed. Coverage includes real attendance/refusal, initial completed outcomes, controlled pacing, pause/resume, skip/replay, stale evidence, reduced motion, ordering/deduplication, history gaps and missing verification. Semantic colors meet 4.5:1 contrast against the light and dark surfaces. Default presentation remains dark; theme-aware tokens also support the light palette. No backend, monitoring, runbook, policy or event-delivery code changed.
