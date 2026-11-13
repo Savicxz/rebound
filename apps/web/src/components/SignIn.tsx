@@ -55,7 +55,9 @@ export default function SignIn({
         await onStartDemo();
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not start demo.");
+      setError(
+        reason instanceof Error ? reason.message : "Could not start demo.",
+      );
     } finally {
       setBusy(false);
     }
