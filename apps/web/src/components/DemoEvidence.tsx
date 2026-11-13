@@ -557,282 +557,287 @@ export default function DemoEvidence({
           }
         />
       )}
-      {!data ? (
-        <div
-          aria-label="Loading recorded workflow"
-          aria-busy="true"
-          className="grid gap-4 border-t border-stone-200 p-6 sm:grid-cols-5"
-        >
-          {[1, 2, 3, 4, 5].map((n) => (
-            <div key={n} className="skeleton h-20" />
-          ))}
-        </div>
-      ) : (
-        <ol
-          className={
-            compact ? "studio-steps" : "grid sm:grid-cols-2 lg:grid-cols-5"
-          }
-          aria-label="Recorded incident workflow"
-        >
-          {steps.map((step, index) => {
-            const current = phase.step === index && pending && !operation;
-            const blocked =
-              (review && index >= 3) || (reset && !completed[index]);
-            const status = blocked
-              ? "blocked"
-              : current
-                ? "current"
-                : completed[index]
-                  ? "complete"
-                  : "waiting";
-            return (
-              <li
-                key={step.title}
-                className={`workflow-step ${compact ? "studio-step" : ""}`}
-                data-state={status}
-                aria-current={current ? "step" : undefined}
-              >
-                <div className="flex items-center gap-2 text-xs text-stone-500">
-                  {current ? (
-                    <ActivityIndicator className="!h-4 !w-4" />
-                  ) : completed[index] && !blocked ? (
-                    <Check aria-hidden="true" className="h-4 w-4" />
-                  ) : blocked ? (
-                    <Pause aria-hidden="true" className="h-4 w-4" />
-                  ) : (
-                    <span className="font-mono">0{index + 1}</span>
-                  )}
-                  <span>
-                    {current
-                      ? "In progress"
-                      : blocked
-                        ? review
-                          ? "Review / paused"
-                          : "Ended"
-                        : completed[index]
-                          ? "Recorded"
-                          : "Awaiting evidence"}
-                  </span>
-                </div>
-                <h3 className="mt-3 text-sm font-semibold text-stone-900">
-                  {index === 3 && review ? "Human review" : step.title}
-                </h3>
-                <p className="mt-2 font-mono text-[11px] text-stone-500">
-                  {formatClock(
-                    index === 3 && review
-                      ? recorded("HUMAN_REVIEW_REQUIRED")?.at
-                      : step.at,
-                  )}
-                </p>
-                <p
-                  className={`mt-2 break-words text-xs leading-relaxed text-stone-600 ${compact ? "studio-step-detail" : ""}`}
-                >
-                  {step.detail}
-                </p>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-      {compact && incident && (
-        <section
-          aria-label="Recorded Rebound decision"
-          className="border-t border-stone-200 px-5 py-4 sm:px-6"
-        >
-          <p className="text-xs font-medium text-stone-700">
-            {providerName(incident)}
-          </p>
-          <p className="mt-2 text-sm text-stone-600">
-            {recorded("POLICY_EVALUATED")?.public_message ||
-              "No policy verdict recorded yet."}
-          </p>
-          <p className="mt-2 break-words font-mono text-xs text-stone-600">
-            {incident.runbook_executions[0]
-              ? `${incident.runbook_executions[0].runbook_id} / ${incident.runbook_executions[0].status}`
-              : "No bounded recovery action recorded."}
-          </p>
-        </section>
-      )}
-      <div className="border-t border-stone-200 p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="ui-eyebrow">Evidence inspector</p>
-          <span
-            className={`state-tag ${reset ? "state-reset" : verified ? "state-verified" : review ? "state-review" : ""}`}
+      <details className="border-t border-stone-200" open={!compact}>
+        <summary className="px-5 py-4 text-sm font-medium text-stone-800 sm:px-6">
+          Advanced technical evidence
+        </summary>
+        {!data ? (
+          <div
+            aria-label="Loading recorded workflow"
+            aria-busy="true"
+            className="grid gap-4 border-t border-stone-200 p-6 sm:grid-cols-5"
           >
-            {(reset ? "Run reset" : incident?.state) ||
-              (run ? "Awaiting incident" : "No run recorded")}
-          </span>
-        </div>
-        <p className="mt-2 text-xs text-stone-500">
-          Synthetic services only. No timed progress simulation.{" "}
-          {incident ? `Incident ${incident.id}` : "No incident loaded"}
-        </p>
-        {incident?.latest_analysis && (
-          <details className="mt-4 border-t border-stone-200 pt-2">
-            <summary className="text-sm font-medium text-stone-800">
-              Analysis source and reasoning
-            </summary>
-            <div className="mt-3 space-y-3 text-sm text-stone-600">
-              <span className="state-tag">
-                {incident.latest_analysis.provider === "demo_fallback"
-                  ? "Rule-based demo fallback / not Gemini execution"
-                  : incident.latest_analysis.provider === "gemini_api"
-                    ? "Recorded Gemini API analysis"
-                    : "Recorded Enterprise analysis"}
-              </span>
-              <p>{incident.latest_analysis.summary}</p>
-              <p>{incident.latest_analysis.reasoning_summary}</p>
-              {incident.latest_analysis.fallback_reason && (
-                <p className="text-xs">
-                  Fallback reason: {incident.latest_analysis.fallback_reason}
-                </p>
-              )}
-            </div>
-          </details>
-        )}
-        <details className="mt-3 border-t border-stone-200 pt-2">
-          <summary className="text-sm font-medium text-stone-800">
-            Live process and monitor counters
-          </summary>
-          <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <dt className="text-xs text-stone-500">
-                Process / observed {formatClock(runtime?.observed_at)}
-              </dt>
-              <dd className="mt-1 font-mono">
-                {runtime
-                  ? runtime.child_running
-                    ? `Running / PID ${runtime.child_pid ?? "unknown"}`
-                    : "Stopped"
-                  : token
-                    ? "Awaiting supervisor response"
-                    : "Sign in to inspect runner"}
-              </dd>
-              {run && (
-                <p className="mt-1 text-xs text-stone-500">
-                  Before injection: PID{" "}
-                  {run.runtime_before.child_pid ?? "unknown"}
-                </p>
-              )}
-            </div>
-            <div>
-              <dt className="text-xs text-stone-500">Supervisor restarts</dt>
-              <dd className="mt-1 font-mono">
-                {runtime?.restart_count ?? "Unverified"}
-              </dd>
-              <p className="mt-1 text-xs text-stone-500">
-                Mode: {runtime?.mode || "unverified"}
-                {runtimeError ? " / stale" : ""}
-              </p>
-            </div>
-            <div>
-              <dt className="text-xs text-stone-500">
-                Consecutive checks / live service
-              </dt>
-              <dd className="mt-1 font-mono">
-                {service
-                  ? `${service.consecutive_failures} failed / ${service.consecutive_successes} passed`
-                  : "Not loaded"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-stone-500">Latest run probe</dt>
-              <dd className="mt-1 font-mono">
-                {latest
-                  ? `${latest.success ? "PASS" : "FAIL"} / ${latest.http_status ?? "No HTTP response"}`
-                  : "No probe recorded"}
-              </dd>
-            </div>
-          </dl>
-        </details>
-        <details className="mt-3 border-t border-stone-200 pt-2">
-          <summary className="text-sm font-medium text-stone-800">
-            Recent probe receipts ({recent.length})
-          </summary>
-          <p className="mt-2 text-xs text-stone-500">
-            Most recent 24 available checks within this run. History is bounded
-            by the dashboard sample.
-          </p>
-          <ol className="mt-3 divide-y divide-stone-200">
-            {recent.map((check) => (
-              <li key={check.id}>
-                <details>
-                  <summary className="flex flex-wrap justify-between gap-2 py-3 text-xs text-stone-700">
-                    <span className="font-mono">
-                      {formatClock(check.observed_at)}
-                    </span>
-                    <span
-                      className={`state-tag ${check.success ? "" : "state-review"}`}
-                    >
-                      {check.success ? "PASS" : "FAIL"} /{" "}
-                      {check.http_status ?? "No response"}
-                    </span>
-                    <span className="font-mono">
-                      {check.latency_ms.toFixed(1)} ms
-                    </span>
-                    <span>
-                      Inspect receipt
-                      <ArrowUpRight
-                        aria-hidden="true"
-                        className="ml-1 inline h-3 w-3"
-                      />
-                    </span>
-                  </summary>
-                  <p className="mb-2 break-all font-mono text-xs text-stone-500">
-                    Probe {check.id} / {check.error_type || "No error"}
-                  </p>
-                  <pre className="mb-3 whitespace-pre-wrap break-all text-xs text-stone-600">
-                    {check.sanitized_details ||
-                      "No additional details recorded."}
-                  </pre>
-                </details>
-              </li>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <div key={n} className="skeleton h-20" />
             ))}
-          </ol>
-          {!recent.length && (
-            <p className="py-4 text-sm text-stone-500">
-              No probe receipts yet. Nothing is being presented as verified.
-            </p>
-          )}
-        </details>
-        {incident && (
-          <details
-            className="mt-3 border-t border-stone-200 pt-2"
-            open={!compact}
+          </div>
+        ) : (
+          <ol
+            className={
+              compact ? "studio-steps" : "grid sm:grid-cols-2 lg:grid-cols-5"
+            }
+            aria-label="Recorded incident workflow"
           >
+            {steps.map((step, index) => {
+              const current = phase.step === index && pending && !operation;
+              const blocked =
+                (review && index >= 3) || (reset && !completed[index]);
+              const status = blocked
+                ? "blocked"
+                : current
+                  ? "current"
+                  : completed[index]
+                    ? "complete"
+                    : "waiting";
+              return (
+                <li
+                  key={step.title}
+                  className={`workflow-step ${compact ? "studio-step" : ""}`}
+                  data-state={status}
+                  aria-current={current ? "step" : undefined}
+                >
+                  <div className="flex items-center gap-2 text-xs text-stone-500">
+                    {current ? (
+                      <ActivityIndicator className="!h-4 !w-4" />
+                    ) : completed[index] && !blocked ? (
+                      <Check aria-hidden="true" className="h-4 w-4" />
+                    ) : blocked ? (
+                      <Pause aria-hidden="true" className="h-4 w-4" />
+                    ) : (
+                      <span className="font-mono">0{index + 1}</span>
+                    )}
+                    <span>
+                      {current
+                        ? "In progress"
+                        : blocked
+                          ? review
+                            ? "Review / paused"
+                            : "Ended"
+                          : completed[index]
+                            ? "Recorded"
+                            : "Awaiting evidence"}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-sm font-semibold text-stone-900">
+                    {index === 3 && review ? "Human review" : step.title}
+                  </h3>
+                  <p className="mt-2 font-mono text-[11px] text-stone-500">
+                    {formatClock(
+                      index === 3 && review
+                        ? recorded("HUMAN_REVIEW_REQUIRED")?.at
+                        : step.at,
+                    )}
+                  </p>
+                  <p
+                    className={`mt-2 break-words text-xs leading-relaxed text-stone-600 ${compact ? "studio-step-detail" : ""}`}
+                  >
+                    {step.detail}
+                  </p>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+        {compact && incident && (
+          <section
+            aria-label="Recorded Rebound decision"
+            className="border-t border-stone-200 px-5 py-4 sm:px-6"
+          >
+            <p className="text-xs font-medium text-stone-700">
+              {providerName(incident)}
+            </p>
+            <p className="mt-2 text-sm text-stone-600">
+              {recorded("POLICY_EVALUATED")?.public_message ||
+                "No policy verdict recorded yet."}
+            </p>
+            <p className="mt-2 break-words font-mono text-xs text-stone-600">
+              {incident.runbook_executions[0]
+                ? `${incident.runbook_executions[0].runbook_id} / ${incident.runbook_executions[0].status}`
+                : "No bounded recovery action recorded."}
+            </p>
+          </section>
+        )}
+        <div className="border-t border-stone-200 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="ui-eyebrow">Evidence inspector</p>
+            <span
+              className={`state-tag ${reset ? "state-reset" : verified ? "state-verified" : review ? "state-review" : ""}`}
+            >
+              {(reset ? "Run reset" : incident?.state) ||
+                (run ? "Awaiting incident" : "No run recorded")}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-stone-500">
+            Synthetic services only. No timed progress simulation.{" "}
+            {incident ? `Incident ${incident.id}` : "No incident loaded"}
+          </p>
+          {incident?.latest_analysis && (
+            <details className="mt-4 border-t border-stone-200 pt-2">
+              <summary className="text-sm font-medium text-stone-800">
+                Analysis source and reasoning
+              </summary>
+              <div className="mt-3 space-y-3 text-sm text-stone-600">
+                <span className="state-tag">
+                  {incident.latest_analysis.provider === "demo_fallback"
+                    ? "Rule-based demo fallback / not Gemini execution"
+                    : incident.latest_analysis.provider === "gemini_api"
+                      ? "Recorded Gemini API analysis"
+                      : "Recorded Enterprise analysis"}
+                </span>
+                <p>{incident.latest_analysis.summary}</p>
+                <p>{incident.latest_analysis.reasoning_summary}</p>
+                {incident.latest_analysis.fallback_reason && (
+                  <p className="text-xs">
+                    Fallback reason: {incident.latest_analysis.fallback_reason}
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
+          <details className="mt-3 border-t border-stone-200 pt-2">
             <summary className="text-sm font-medium text-stone-800">
-              Incident event timeline ({events.length})
+              Live process and monitor counters
             </summary>
-            <ol className="ml-1 mt-5">
-              {[...events]
-                .sort((a, b) => a.sequence - b.sequence)
-                .map((event) => (
-                  <li key={event.id} className="timeline-entry">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <p className="text-xs font-medium capitalize text-stone-800">
-                        {event.event_type.toLowerCase().replaceAll("_", " ")}
-                      </p>
-                      <p className="font-mono text-[11px] text-stone-500">
-                        {formatClock(event.at)}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-sm text-stone-600">
-                      {event.public_message}
+            <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <dt className="text-xs text-stone-500">
+                  Process / observed {formatClock(runtime?.observed_at)}
+                </dt>
+                <dd className="mt-1 font-mono">
+                  {runtime
+                    ? runtime.child_running
+                      ? `Running / PID ${runtime.child_pid ?? "unknown"}`
+                      : "Stopped"
+                    : token
+                      ? "Awaiting supervisor response"
+                      : "Sign in to inspect runner"}
+                </dd>
+                {run && (
+                  <p className="mt-1 text-xs text-stone-500">
+                    Before injection: PID{" "}
+                    {run.runtime_before.child_pid ?? "unknown"}
+                  </p>
+                )}
+              </div>
+              <div>
+                <dt className="text-xs text-stone-500">Supervisor restarts</dt>
+                <dd className="mt-1 font-mono">
+                  {runtime?.restart_count ?? "Unverified"}
+                </dd>
+                <p className="mt-1 text-xs text-stone-500">
+                  Mode: {runtime?.mode || "unverified"}
+                  {runtimeError ? " / stale" : ""}
+                </p>
+              </div>
+              <div>
+                <dt className="text-xs text-stone-500">
+                  Consecutive checks / live service
+                </dt>
+                <dd className="mt-1 font-mono">
+                  {service
+                    ? `${service.consecutive_failures} failed / ${service.consecutive_successes} passed`
+                    : "Not loaded"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-stone-500">Latest run probe</dt>
+                <dd className="mt-1 font-mono">
+                  {latest
+                    ? `${latest.success ? "PASS" : "FAIL"} / ${latest.http_status ?? "No HTTP response"}`
+                    : "No probe recorded"}
+                </dd>
+              </div>
+            </dl>
+          </details>
+          <details className="mt-3 border-t border-stone-200 pt-2">
+            <summary className="text-sm font-medium text-stone-800">
+              Recent probe receipts ({recent.length})
+            </summary>
+            <p className="mt-2 text-xs text-stone-500">
+              Most recent 24 available checks within this run. History is
+              bounded by the dashboard sample.
+            </p>
+            <ol className="mt-3 divide-y divide-stone-200">
+              {recent.map((check) => (
+                <li key={check.id}>
+                  <details>
+                    <summary className="flex flex-wrap justify-between gap-2 py-3 text-xs text-stone-700">
+                      <span className="font-mono">
+                        {formatClock(check.observed_at)}
+                      </span>
+                      <span
+                        className={`state-tag ${check.success ? "" : "state-review"}`}
+                      >
+                        {check.success ? "PASS" : "FAIL"} /{" "}
+                        {check.http_status ?? "No response"}
+                      </span>
+                      <span className="font-mono">
+                        {check.latency_ms.toFixed(1)} ms
+                      </span>
+                      <span>
+                        Inspect receipt
+                        <ArrowUpRight
+                          aria-hidden="true"
+                          className="ml-1 inline h-3 w-3"
+                        />
+                      </span>
+                    </summary>
+                    <p className="mb-2 break-all font-mono text-xs text-stone-500">
+                      Probe {check.id} / {check.error_type || "No error"}
                     </p>
-                    <p className="mt-2 font-mono text-[11px] text-stone-500">
-                      #{event.sequence} / {event.actor_id}
-                    </p>
-                  </li>
-                ))}
+                    <pre className="mb-3 whitespace-pre-wrap break-all text-xs text-stone-600">
+                      {check.sanitized_details ||
+                        "No additional details recorded."}
+                    </pre>
+                  </details>
+                </li>
+              ))}
             </ol>
-            {!events.length && (
-              <p className="mt-3 text-sm text-stone-500">
-                No timeline events recorded yet.
+            {!recent.length && (
+              <p className="py-4 text-sm text-stone-500">
+                No probe receipts yet. Nothing is being presented as verified.
               </p>
             )}
           </details>
-        )}
-      </div>
+          {incident && (
+            <details
+              className="mt-3 border-t border-stone-200 pt-2"
+              open={!compact}
+            >
+              <summary className="text-sm font-medium text-stone-800">
+                Incident event timeline ({events.length})
+              </summary>
+              <ol className="ml-1 mt-5">
+                {[...events]
+                  .sort((a, b) => a.sequence - b.sequence)
+                  .map((event) => (
+                    <li key={event.id} className="timeline-entry">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="text-xs font-medium capitalize text-stone-800">
+                          {event.event_type.toLowerCase().replaceAll("_", " ")}
+                        </p>
+                        <p className="font-mono text-[11px] text-stone-500">
+                          {formatClock(event.at)}
+                        </p>
+                      </div>
+                      <p className="mt-1 text-sm text-stone-600">
+                        {event.public_message}
+                      </p>
+                      <p className="mt-2 font-mono text-[11px] text-stone-500">
+                        #{event.sequence} / {event.actor_id}
+                      </p>
+                    </li>
+                  ))}
+              </ol>
+              {!events.length && (
+                <p className="mt-3 text-sm text-stone-500">
+                  No timeline events recorded yet.
+                </p>
+              )}
+            </details>
+          )}
+        </div>
+      </details>
     </section>
   );
 }

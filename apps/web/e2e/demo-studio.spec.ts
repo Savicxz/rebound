@@ -55,7 +55,7 @@ test("learning portal: onboarding, failure, recovery, print, JSON and replay", a
       responses.push(await response.json());
   });
   const action = await page
-    .getByRole("button", { name: "Open course materials", exact: true })
+    .getByRole("button", { name: "Check attendance sync", exact: true })
     .boundingBox();
   expect(action!.y + action!.height).toBeLessThan(768);
   await page.screenshot({
@@ -188,7 +188,7 @@ test("database contention: real HTTP 500, safe human review, dark mode and reset
     .getByRole("button", { name: "Try automatic recovery", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toContainText(
-    "The learning portal goes offline",
+    "Attendance records stop syncing",
   );
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   expect(
@@ -211,7 +211,23 @@ test("database contention: real HTTP 500, safe human review, dark mode and reset
 test("attendance replay: actual queue drain, same PID, responsive and reduced motion", async ({
   page,
 }) => {
-  await run(page, "Attendance records stop syncing");
+  await expect(
+    page.getByRole("region", { name: "Demonstration controls" }),
+  ).toContainText("Attendance records stop syncing");
+  await screenshot(page, "studio-attendance-ready.png");
+  await page
+    .getByRole("button", { name: "Run demonstration", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "Attendance records stop syncing",
+  );
+  await page
+    .getByRole("button", { name: "Confirm scenario", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Attendance sync", exact: true }),
+  ).toContainText("12 synthetic records are queued");
+  await screenshot(page, "studio-attendance-detection.png");
   await expect(
     page.getByRole("heading", {
       name: "Queue replayed. Recovery verified.",
@@ -219,7 +235,7 @@ test("attendance replay: actual queue drain, same PID, responsive and reduced mo
     }),
   ).toBeVisible();
   await expect(page.getByRole("region", { name: "Run outcome" })).toContainText(
-    "12 synthetic attendance records",
+    "Approved action completed: replay the synthetic attendance queue.",
   );
   await expect(
     page.getByRole("region", { name: "Attendance sync", exact: true }),
@@ -238,6 +254,23 @@ test("attendance replay: actual queue drain, same PID, responsive and reduced mo
   expect(runtime.restart_count).toBe(
     dashboard.demo_run.runtime_before.restart_count,
   );
+  expect(incident.runbook_executions).toHaveLength(1);
+  expect(
+    incident.events.filter(
+      (event: { event_type: string }) =>
+        event.event_type === "VERIFICATION_PROBE_SUCCESS",
+    ),
+  ).toHaveLength(2);
+  await expect(
+    page.getByRole("list", { name: "Recorded incident workflow" }),
+  ).not.toBeVisible();
+  await screenshot(page, "studio-attendance-verified.png");
+  await page.getByText("Advanced technical evidence", { exact: true }).click();
+  await expect(
+    page.getByRole("list", { name: "Recorded incident workflow" }),
+  ).toBeVisible();
+  await screenshot(page, "studio-attendance-evidence.png");
+  await page.getByText("Advanced technical evidence", { exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   expect(

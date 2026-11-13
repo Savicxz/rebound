@@ -27,8 +27,9 @@ export const studioScenarios = {
     problem:
       "Twelve synthetic attendance records are waiting in a stalled queue.",
     result:
-      "Replay the bounded queue without restarting the process, then verify health.",
-    lesson: "Recover a workflow without re-entering or duplicating attendance.",
+      "Process the twelve queued records without restarting the service, then independently verify health.",
+    lesson:
+      "Process a stalled queue with one approved action and check the result.",
   },
 } as const;
 export type StudioScenarioId = keyof typeof studioScenarios;

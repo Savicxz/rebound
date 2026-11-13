@@ -1,110 +1,76 @@
-# Demo Studio: judge walkthrough and evidence
+# Demo Studio: attendance-first judge walkthrough
 
-The Studio pairs a simulated student workspace with Rebound's independent monitor.
-Student buttons call `/api/v1/demo/workflow-check`, which sends a real HTTP request
-to the isolated child service. Those requests never increment monitor counters or
-resolve an incident. Sample course content is illustrative, not a real school integration.
+The Studio pairs a simulated student workspace with an independent monitor. Requests use the isolated child service; they never increment health counters or resolve incidents. No real university systems are connected.
 
-## First 90 seconds
+## Attendance-first 90-second demonstration
 
-Use the learning portal for the first demonstration. Times below are presentation
-guidance, not a promised execution duration or a simulated progress schedule.
+Before presenting, run `python start.py`, click **Start local demo**, reset any prior run, and wait until **Run demonstration** is enabled. Attendance is selected by default. Rehearse at 1366 x 768 or larger with technical disclosures closed. Do not spend presentation time installing or starting services.
 
-1. **0–10 seconds:** Run `python start.py`, open the dashboard and click **Start local
-   demo**. Successful local sign-in opens **Demo Studio** automatically. Explain:
-   “School services fail; blindly restarting them can make things worse.”
-2. **10–20 seconds:** The portal is preselected. Click **Run demonstration**, review
-   the fault description and **Confirm scenario**. Rebound captures a real student
-   baseline request, checks the backend baseline and injects a sandbox process crash.
-3. **20–60 seconds:** Watch the student request fail beside the monitor. Point out
-   repeated failed probes, the recorded analysis provider, policy and the single
-   allowlisted restart. No timed animation advances the incident. If the worker or
-   backend is unavailable, stop and use the error/retry guidance rather than claim
-   an outcome. Default monitoring is every five seconds; credentials/network latency
-   can change execution time.
-4. **60–80 seconds:** Show the successful independent request and **Portal restored.
-   Recovery verified.** Compare observed HTTP status, latency and PID. Recovery time
-   is measured **from incident detection to verified resolution**, not from the
-   first failed student request. A separate successful student request is captured
-   after recorded resolution; it is not substituted for monitor verification.
-5. **80–90 seconds:** Click **Print incident summary** or **Download evidence JSON**.
-   Explain the synthetic-workload disclosure and the actual provider label. The print
-   button captures a fixed snapshot; use the browser's print dialog to print or save PDF.
+| Time | Show and say |
+| --- | --- |
+| 0-10 s | "Attendance records can get stuck waiting to sync. Rebound demonstrates one approved recovery and checks the result. These are synthetic records." |
+| 10-20 s | Click **Run demonstration**, then **Confirm scenario**. "Twelve records are now queued. This request shows the failure; a separate monitor detects it." |
+| 20-40 s | Show the failed request and recorded checks. "Rebound allows a fixed queue replay only when evidence matches. Analysis cannot override that rule." Name the actual provider displayed; fallback is not live Gemini. |
+| 40-60 s | Wait for **Queue replayed. Recovery verified.** and **0 records pending / 12 processed**. "The queue was processed without restarting the service. Independent health checks verified recovery." Quote only the displayed time, measured from incident detection. |
+| 60-70 s | Point to **Print incident summary** and **Download evidence JSON**. "The result and supporting evidence remain available for review." |
+| 70-85 s | Show the saved registration safety-stop screenshot. "For this simulated database fault, there is no approved remedy. Rebound records the evidence and stops without restarting." Identify it as a completed test capture, not a second live run. |
+| 85-90 s | "Rebound automates a known recovery task and makes its safety boundary visible." |
 
-## Two follow-up stories
+These times are speaking guidance, not promised execution durations. Default checks run every five seconds; live Gemini can add latency. If a result takes longer, show the actual pending state. Do not imply completion or reset to manufacture success. Use a clearly labelled saved result if the live stack is unavailable.
 
-- **Database contention:** Reset, or choose **Choose another demo**, expand the
-  curated choices, select registration and run the selected demo. The workload
-  returns HTTP 500. Rebound records a policy safety stop and human review. No restart,
-  successful verification or recovery time is invented. A suggested support handoff
-  does not create a real ticket or send a message.
-- **Attendance queue replay:** Select attendance. The workload returns HTTP 429 with
-  twelve synthetic queued records. The bounded replay processes them; a subsequent
-  student request reports zero pending and twelve processed. The process PID and
-  restart counter remain unchanged. Independent probes still verify recovery.
+## Follow-up stories and evidence
 
-**Replay this demo** confirms a reset and creates a distinct run. **Reset sandbox**
-closes an open incident administratively and retains incident history; reset is not
-verified recovery. Existing non-curated runs must be reset before a Studio story.
-The broader backend scenario catalog remains available through its existing API.
+For a live safety stop outside the 90-second slot: **Try human-review scenario**, then **Confirm replay**. Wait for **Automatic recovery safely blocked**. The registration request returns HTTP 500 and no recovery execution is recorded. Reset closes the incident administratively; it is not recovery.
 
-## Screenshots from live end-to-end tests
+Portal crash/restart remains available under **Choose another demo**. Select **The learning portal goes offline** and run it. A real child process stops and is restarted once; independent probes verify health. Course content is illustrative, not retrieved from a university portal.
 
-These are real isolated test runs, including their actual timestamps, PIDs and
-latencies. Tests use a two-second health interval to keep CI bounded; normal startup
-retains the five-second default. The test environment has no Gemini key, so the
-screenshots truthfully show deterministic fallback. They are examples, not promised timings.
+**Advanced technical evidence** opens the recorded workflow, analysis, policy decision, process counters, probe receipts and event timeline. **Recovery execution details** contains the raw execution receipt and process observations. Disclosures do not affect backend processing. Provider provenance stays visible in the main outcome.
 
-- [Initial Studio](screenshots/studio-ready.png)
-- [Verified portal recovery](screenshots/studio-crash-verified.png)
-- [Database safety stop in dark mode](screenshots/studio-human-review-dark.png)
-- [Attendance replay on a mobile viewport](screenshots/studio-attendance-mobile.png)
-- [Disconnected request path](screenshots/studio-disconnected.png)
-- [Printable evidence snapshot](screenshots/incident-print-summary.png)
+## Final screenshots
 
-## Repeatable tests
+Captures are generated by isolated live Chromium tests, not mocked progress. Keyless runs show deterministic fallback. Test checks run every two seconds; normal startup uses five seconds. Capture timings are examples, not performance promises.
 
-After installing normal Python/Node dependencies:
+- [Attendance ready](screenshots/studio-attendance-ready.png)
+- [Attendance failure detected](screenshots/studio-attendance-detection.png)
+- [Attendance verified](screenshots/studio-attendance-verified.png)
+- [Expanded technical evidence](screenshots/studio-attendance-evidence.png)
+- [Attendance mobile](screenshots/studio-attendance-mobile.png)
+- [Registration safety stop](screenshots/studio-human-review-dark.png)
+- [Portal recovery](screenshots/studio-crash-verified.png)
+- [Disconnected backend](screenshots/studio-disconnected.png)
+- [Printable incident report](screenshots/incident-print-summary.png)
+
+## Verification
+
+Run Python regression tests from the repository root:
 
 ```powershell
-cd apps/web
-npx playwright install chromium
-npm run test:e2e
+.\.venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-Playwright starts a separate API, worker, supervisor, child workload and Next server.
-It uses ports **3101, 8101, 5107 and 5108**, a temporary SQLite database under
-`.logs/e2e`, ephemeral test credentials, and no external AI calls. It refuses to reuse
-an occupied test server. `REBOUND_TEST_PYTHON` can select an installed Python with
-the project requirements. Logs are written to `.logs/e2e`; failures retain traces
-and screenshots under the ignored `apps/web/test-results` directory.
+From `apps/web`, run these sequentially. Next.js development tests and builds both generate type references; do not run the production build concurrently with the browser server.
 
-Coverage includes local onboarding, portal crash and restart, real HTTP failure and
-success receipts, independent verification, JSON export, printable snapshot, replay,
-database human review without execution, queue replay with PID preservation, mobile
-width, reduced motion, dialog cancellation and browser-to-backend disconnection/retry.
-Connection loss is injected at the browser request boundary; it does not fake a
-backend incident or physically stop a production service. Print-dialog invocation
-is stubbed in the browser test; print-media rendering and report content are checked.
+```powershell
+npm run check
+npm run format:check
+npm run test:e2e
+npm run build
+```
+
+Playwright starts an isolated API, monitor, supervisor, workload and web server on ports 3101, 8101, 5107 and 5108, with a temporary database and no live AI credentials. Install Chromium with `npx playwright install chromium` if necessary. Tests cover all three stories, replay/reset, JSON export, print-media output, disconnection, event delivery, mobile layout and reduced motion.
 
 ## Honest limits
 
-- One synthetic child workload, three curated stories, no real student records,
-  physical equipment, school network or production connectors.
-- “Gemini API” is shown only when a recorded analysis actually used that provider.
-  Keyless tests show fallback; live Gemini and Enterprise execution are not tested here.
-- Probe history is bounded. Missing before/failure/after observations are labelled
-  **Not observed**. Runtime observations can be newer than the incident.
-- Independent request receipts are held in browser memory. Reloading retains server
-  incidents, but cannot recreate missing student-request history.
-- Chromium desktop/mobile emulation and print media are tested. Physical touch
-  devices, other browser engines and native printer/PDF dialogs remain manual checks.
-## Final polish visual review (13 November 2026)
+- One synthetic workload; the attendance queue is in memory, not durable student-record storage.
+- Student-request queue counts and independent health verification are separate observations.
+- Gemini API is labelled only after an actual provider result. Gemini Enterprise transport is not implemented.
+- Request receipts live in browser memory. Server incident history persists, but reloading cannot recreate missing student requests.
+- Probe samples are bounded; missing observations remain **Not observed**. Runtime observations can be newer than an incident.
+- Email delivery, production ticketing, real student accounts and university connectors are absent.
+- Chromium emulation and print media are automated; native printer dialogs and physical devices require manual checks.
 
-The follow-up retains the existing Demo Studio and safety model. Before screenshots are preserved in `before-polish/`; current captures are in `screenshots/`. The older captures used 1440px desktop width; the new desktop captures use 1366 � 768. They are qualitative comparisons, not pixel-diff baselines.
+## Validation for this presentation update
 
-Actual PNGs were opened and inspected after the browser tests. The initial run exposed a student action at y=1046, below the desktop fold. Moving the request button above response details brought it within the initial viewport; Playwright now asserts its bottom edge is below 768px. Completed runs no longer retain the redundant injection notice and next-step paragraph. The reviewed dark human-review screen shows healthy baseline, failed HTTP 500, and current HTTP 500 separately, without claiming recovery. Outcome actions sit beside the result, and the mobile view wraps technical evidence without horizontal overflow.
+58 Python tests, all eight Chromium journeys, `npm run check`, `npm run format:check`, and `npm run build` passed. Desktop attendance, expanded evidence, mobile attendance and the dark safety-stop capture were visually inspected. No backend files or policies changed. Live Gemini and native print dialogs were not exercised.
 
-Reviewed captures: initial 1366px viewport, active detection with real counters, verified portal recovery, human review in dark mode, attendance replay at 390px with reduced motion, disconnected backend, and print-media report. The deterministic fallback finishes analysis and policy within the same worker cycle, so a stable active-analysis screenshot is not reproducible in this keyless test run. No delay or invented activity was added for photography. Native printer interaction and physical-device testing remain manual.
-
-Validation: `npm run check`, `npm run format:check`, and `npm run build` passed locally. Python: 47 tests passed. Chromium live journeys cover portal recovery, human review and cancelled cross-scenario confirmation, attendance replay, disconnection and reconnection, reset/replay, JSON and print-media evidence. No backend policy, authentication or API contracts changed; no runtime dependencies were added.
+The optional `npm run build:production` packaging attempt was stopped because an existing standalone server was using `.next-production` on port 3000; that server was left running. Stop a standalone server before rebuilding its output directory. The standard production build passed independently.

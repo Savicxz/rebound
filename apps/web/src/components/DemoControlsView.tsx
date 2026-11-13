@@ -39,7 +39,8 @@ export default function DemoControlsView({
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [selected, setSelected] = useState<StudioScenarioId>("crash");
+  const [selected, setSelected] =
+    useState<StudioScenarioId>("attendance_backlog");
   const [choosing, setChoosing] = useState(false);
   const [confirmation, setConfirmation] = useState<Action | null>(null);
   const [operation, setOperation] = useState<"inject" | "reset" | null>(null);
@@ -76,8 +77,9 @@ export default function DemoControlsView({
     return () => controller.abort();
   }, [retry]);
   useEffect(() => {
-    if (isStudioScenario(run?.scenario_id)) setSelected(run.scenario_id);
-  }, [run?.id, run?.scenario_id]);
+    if (run?.reset_at) setSelected("attendance_backlog");
+    else if (isStudioScenario(run?.scenario_id)) setSelected(run.scenario_id);
+  }, [run?.id, run?.scenario_id, run?.reset_at]);
   const active = data?.active_incident;
   const inProgress = !!run && !run.reset_at && (!run.incident_id || !!active);
   const hasRun = !!run && !run.reset_at;
@@ -258,9 +260,9 @@ export default function DemoControlsView({
             Demo Studio
           </h1>
           <p className="mt-3 max-w-3xl text-sm text-stone-600">
-            When a school service fails, can automation help without making it
-            worse? Try the student service, introduce a fault, and follow
-            Rebound's measured response.
+            Attendance records are stuck. Rebound runs an approved queue replay,
+            then checks that the service is healthy. Follow the problem, the
+            recovery action, and the recorded result.
           </p>
         </div>
         <span className="state-tag">
@@ -278,7 +280,7 @@ export default function DemoControlsView({
               Choose a different story / three curated scenarios
             </span>
             <span className="text-xs text-stone-500">
-              Start with the learning portal
+              Start with attendance recovery
             </span>
           </summary>
           {catalogError ? (
@@ -306,34 +308,38 @@ export default function DemoControlsView({
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-3">
-              {(Object.keys(studioScenarios) as StudioScenarioId[]).map(
-                (id) => (
-                  <button
-                    key={id}
-                    className="scenario-card"
-                    aria-pressed={selected === id}
-                    disabled={!!operation || !!inProgress}
-                    onClick={() => setSelected(id)}
-                  >
-                    <span className="flex w-full items-center justify-between text-xs text-stone-500">
-                      {id === "crash"
-                        ? "01 / Recommended"
-                        : id === "degraded"
-                          ? "02 / Human judgement"
-                          : "03 / Workflow recovery"}
-                      {selected === id && (
-                        <Check className="h-4 w-4" aria-label="Selected" />
-                      )}
-                    </span>
-                    <span className="text-sm font-semibold">
-                      {studioScenarios[id].title}
-                    </span>
-                    <span className="text-xs text-stone-500">
-                      {studioScenarios[id].lesson}
-                    </span>
-                  </button>
-                ),
-              )}
+              {(
+                [
+                  "attendance_backlog",
+                  "degraded",
+                  "crash",
+                ] as StudioScenarioId[]
+              ).map((id) => (
+                <button
+                  key={id}
+                  className="scenario-card"
+                  aria-pressed={selected === id}
+                  disabled={!!operation || !!inProgress}
+                  onClick={() => setSelected(id)}
+                >
+                  <span className="flex w-full items-center justify-between text-xs text-stone-500">
+                    {id === "attendance_backlog"
+                      ? "01 / Recommended"
+                      : id === "degraded"
+                        ? "02 / Human judgement"
+                        : "03 / Portal recovery"}
+                    {selected === id && (
+                      <Check className="h-4 w-4" aria-label="Selected" />
+                    )}
+                  </span>
+                  <span className="text-sm font-semibold">
+                    {studioScenarios[id].title}
+                  </span>
+                  <span className="text-xs text-stone-500">
+                    {studioScenarios[id].lesson}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </details>
@@ -351,6 +357,9 @@ export default function DemoControlsView({
               ? "Existing sandbox run"
               : studioScenarios[currentScenario].title}
           </h2>
+          {!hasRun && (
+            <p className="mt-2 text-sm text-stone-700">{info.problem}</p>
+          )}
           <p className="mt-1 text-xs leading-relaxed text-stone-500">
             {terminal && observedIncident
               ? observedIncident.state === "RESOLVED"
@@ -494,7 +503,9 @@ export default function DemoControlsView({
                     disabled={!!operation || !!unavailable}
                     onClick={() => {
                       setSelected(
-                        currentScenario === "degraded" ? "crash" : "degraded",
+                        currentScenario === "degraded"
+                          ? "attendance_backlog"
+                          : "degraded",
                       );
                       confirm("replay");
                     }}
